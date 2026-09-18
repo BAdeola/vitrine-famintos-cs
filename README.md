@@ -1,0 +1,126 @@
+# Vitrine Famintos — versão C#
+
+Tela de **atualização do estoque de vitrine** do caixa (OCSFF). Aplicativo
+nativo Windows (WPF, .NET 10) que fala direto com o SQL Server, chamado pelo
+`menu_caixa` (COBOL).
+
+Substitui a versão anterior em Electron ([yellow-cadest-vitrine](https://github.com/BAdeola/yellow-cadest-vitrine)).
+
+## Por que foi reescrito
+
+No PC do caixa — 4 GB de RAM, processador fraco, já rodando o SQL Server e o
+COBOL — a versão Electron levava **cerca de 11 segundos** para abrir. Esse é o
+piso do Chromium naquela máquina: subir o processo principal, o de GPU, o
+renderer e os utilitários. Não cede a otimização; tentamos, inclusive
+eliminando um processo Node inteiro do caminho, e o tempo não mudou.
+
+| | Electron | C# (este) |
+|---|---|---|
+| Processos | Chromium (4+) + Node do backend | **1** |
+| Caminho até o banco | tela → HTTP → Node → SQL Server | **tela → SQL Server** |
+| Runtime a instalar | Node.js | **nenhum** (self-contained) |
+| Abrir (frio) | ~11 s | ~4 s |
+| Abrir (residente) | — | **~0,2 s** |
+
+## Como funciona
+
+O programa fica **residente na bandeja** do Windows. Sobe uma vez no logon e
+não sai mais; "abrir" deixa de ser iniciar um processo e passa a ser mostrar
+uma janela que já existe.
+
+- **No logon**: atalho no Startup rodando `"Yellow Vitrine.exe" --tray` — sobe
+  escondido, já montado.
+- **No menu_caixa**: o COBOL chama o **mesmo `.exe`**, sem argumento. Essa
+  segunda instância percebe que já há uma rodando (Mutex nomeado), sinaliza
+  para ela aparecer (EventWaitHandle nomeado) e encerra. O COBOL não precisa
+  saber de nada disso.
+- **Botão Fechar**: esconde, não encerra.
+- **Encerra de verdade**: menu da bandeja → Sair, ou quando o Windows
+  desliga/desloga.
+
+Se nenhuma instância estiver de pé (depois de uma queda, por exemplo), a
+chamada do COBOL vira a instância normal e abre a janela. Não existe estado
+ruim para tratar.
+
+## Regras de negócio
+
+Portadas fielmente do backend Node da versão anterior. As três valem ao mesmo
+tempo, em camadas independentes.
+
+### Nunca reduzir, só acrescentar
+
+O estoque de vitrine **nunca** pode ser diminuído pela tela — só somado.
+Garantido em três pontos:
+
+| Onde | Como |
+|---|---|
+| Botão `−` | desabilitado quando não há quantidade pendente |
+| Campo de quantidade | valor menor que o salvo volta para o salvo, com aviso vermelho por 4 s |
+| Banco | o `UPDATE` só faz `quantidade + @delta`, e delta ≤ 0 é rejeitado antes |
+
+### Dia aberto
+
+Existir **qualquer** linha em `controle_caixa` significa dia aberto — mesma
+regra do resto do sistema (COBOL). O valor de `situac` não importa: a tabela
+só é esvaziada no fechamento geral do dia. Rechecado dentro da transação do
+save, para cobrir o dia fechar no meio de uma gravação.
+
+### Autoria
+
+`logest_vitrine.codusu` recebe quem abriu o turno mais recente ainda sem
+fechamento (`abetur` sem `fectur` correspondente). O app não tem login
+próprio — foi removido em 2026-09 sem perder o rastreio de quem mexeu.
+
+### Id do log
+
+`logest_vitrine.id` não é `IDENTITY`. O próximo valor sai de um `MAX(id) + 1`
+sob `TABLOCKX` **dentro da mesma transação** — sem isso, dois caixas salvando
+ao mesmo tempo colidiriam no mesmo id.
+
+## Tabelas usadas (banco OCSFF)
+
+| Tabela | Para quê |
+|---|---|
+| `cadest_vitrine` | o estoque em si (`codfic`, `quantidade`) |
+| `fictec` | nome do produto, e os filtros `vitrine = 1` e `situac = 'ATIVO'` |
+| `grufic` | categoria (produto sem grupo cai em "SEM CATEGORIA") |
+| `logest_vitrine` | auditoria de cada alteração |
+| `controle_caixa` | dia aberto/fechado |
+| `abetur` / `fectur` / `cadusu` | quem está no turno |
+
+## Estrutura
+
+```
+src/YellowVitrine.Desktop/
+  App.xaml / App.xaml.cs      bandeja, instância única, ciclo de vida
+  MainWindow.xaml / .xaml.cs  a tela
+  Dados.cs                    acesso ao SQL Server (todas as queries)
+  appsettings.json            conexão (o do repositório tem placeholder)
+```
+
+## Compilar
+
+Precisa do SDK do .NET 10.
+
+```
+cd src/YellowVitrine.Desktop
+dotnet publish -c Release -o ../../publish
+```
+
+Sai em `publish/` — ~140 MB, self-contained (não exige runtime .NET na
+máquina de destino) e com ReadyToRun, que é o que derruba o tempo de partida.
+
+## Instalar
+
+Ver **[MANUAL-INSTALACAO.md](MANUAL-INSTALACAO.md)** — passo a passo, incluindo
+como atualizar sem perder a senha do banco.
+
+## Decisões registradas
+
+- **Sem modo escuro.** A versão Electron tinha alternador; aqui ficou só o
+  tema claro, por decisão.
+- **Sem WebView2.** Seria trazer o Chromium de volta e perder o ganho inteiro.
+- **WPF e não WinForms.** Os cards arredondados, o amarelo da marca e as
+  seções recolhíveis exigem estilização real.
+- **Acesso ao celular fora de escopo.** A versão Electron servia a tela na
+  rede local; isso saiu em 2026-09-17.

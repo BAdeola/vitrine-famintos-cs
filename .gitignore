@@ -1,0 +1,10 @@
+# Build
+bin/
+obj/
+publish/
+*.user
+
+# Configuracao com a senha real do banco. O appsettings.json versionado tem
+# placeholder de proposito; copias locais com credencial nao entram aqui.
+appsettings.*.local.json
+appsettings-backup.json
