@@ -42,6 +42,21 @@ Se nenhuma instância estiver de pé (depois de uma queda, por exemplo), a
 chamada do COBOL vira a instância normal e abre a janela. Não existe estado
 ruim para tratar.
 
+## Lançar pelo teclado
+
+No campo de quantidade, **Enter salta para o item de baixo**, já com o texto
+selecionado — digitar substitui, não acrescenta ao lado. É o que torna viável
+lançar a vitrine inteira sem tirar a mão do teclado.
+
+O salto segue a ordem da tela e pula categorias fechadas, porque percorre a
+árvore visual em vez de uma lista em ordem de criação: as linhas nascem quando
+a categoria é aberta pela primeira vez, então as duas ordens não coincidem. No
+último campo à vista o foco fica onde está — voltar ao começo faria o operador
+perder o lugar sem perceber.
+
+Mudar o foco é o que grava o valor: o mesmo `LostFocus` que já aplicava a
+trava do saldo.
+
 ## Regras de negócio
 
 Portadas fielmente do backend Node da versão anterior. As três valem ao mesmo

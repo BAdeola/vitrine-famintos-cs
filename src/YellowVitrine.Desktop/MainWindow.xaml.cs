@@ -350,7 +350,12 @@ public partial class MainWindow : Window
         };
         campo.KeyDown += (_, e) =>
         {
-            if (e.Key == Key.Enter) Keyboard.ClearFocus();
+            if (e.Key != Key.Enter) return;
+            e.Handled = true;
+
+            // Não precisa gravar à mão: mudar o foco dispara o LostFocus deste
+            // campo, que é quem aplica o valor digitado e a trava do saldo.
+            FocarProximoCampo(campo);
         };
         campo.LostFocus += (_, _) =>
         {
@@ -437,4 +442,56 @@ public partial class MainWindow : Window
     }
 
     private void EsconderErro() => AvisoErro.Visibility = Visibility.Collapsed;
+    /// <summary>
+    /// Leva o foco para o próximo campo de quantidade, na ordem da tela.
+    ///
+    /// Digitar a quantidade e apertar Enter para cair no item de baixo é o que
+    /// torna viável lançar a vitrine inteira sem tirar a mão do teclado.
+    /// </summary>
+    private void FocarProximoCampo(TextBox atual)
+    {
+        var campos = CamposDeQuantidade();
+        var atualNaLista = campos.IndexOf(atual);
+
+        if (atualNaLista < 0 || atualNaLista + 1 >= campos.Count)
+        {
+            // Último campo à vista: fica onde está, com o texto selecionado.
+            // Pular para o começo faria o operador perder o lugar sem perceber.
+            atual.SelectAll();
+            return;
+        }
+
+        var proximo = campos[atualNaLista + 1];
+        proximo.Focus();
+
+        // A lista é rolável e o próximo item pode estar fora da janela — sem
+        // isto o foco iria para um campo que ninguém está vendo.
+        proximo.BringIntoView();
+    }
+
+    /// <summary>
+    /// Os campos de quantidade na ordem em que aparecem na tela.
+    ///
+    /// Percorre a árvore visual em vez de guardar uma lista paralela: as linhas
+    /// nascem quando a categoria é aberta pela primeira vez, então uma lista em
+    /// ordem de criação não seria a ordem da tela. Categoria fechada fica de
+    /// fora sozinha, porque o conteúdo dela é Collapsed e o IsVisible dos
+    /// filhos vira false.
+    /// </summary>
+    private List<TextBox> CamposDeQuantidade() =>
+        [.. Descendentes(ListaCategorias)
+            .OfType<TextBox>()
+            .Where(c => c.Style == _sCampo && c.IsVisible && c.IsEnabled)];
+
+    private static IEnumerable<DependencyObject> Descendentes(DependencyObject raiz)
+    {
+        var quantos = VisualTreeHelper.GetChildrenCount(raiz);
+        for (var i = 0; i < quantos; i++)
+        {
+            var filho = VisualTreeHelper.GetChild(raiz, i);
+            yield return filho;
+            foreach (var neto in Descendentes(filho)) yield return neto;
+        }
+    }
+
 }
