@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -18,13 +17,36 @@ public partial class MainWindow : Window
     private Dados _dados = null!;
     private Operador? _operador;
     private bool _diaAberto;
-    private readonly List<ProdutoVitrine> _produtos = [];
-    private readonly HashSet<string> _categoriasAbertas = [];
+    private bool _modoHomologacao;
     private bool _salvando;
+
+    private readonly List<ProdutoVitrine> _produtos = [];
+
+    /// <summary>
+    /// Os produtos agrupados em faixas horizontais. A lista virtualiza por
+    /// faixa: o VirtualizingStackPanel do WPF só trabalha em uma direção, e um
+    /// WrapPanel comum não virtualiza nada — montaria os 130 cards de uma vez,
+    /// que é exatamente o que trava esta máquina.
+    /// </summary>
+    private readonly List<List<ProdutoVitrine>> _faixas = [];
+
+    /// <summary>Largura do card mais a margem, como está no DataTemplate.</summary>
+    private const double LarguraDoCard = 210 + 12;
+
+    private int _colunas;
 
     public MainWindow()
     {
         InitializeComponent();
+
+        // Os campos nascem e morrem conforme a rolagem, então o tratamento fica
+        // na lista e não em cada campo: handler preso a um card reciclado
+        // passaria a valer para outro produto.
+        ListaCards.AddHandler(UIElement.PreviewTextInputEvent, new TextCompositionEventHandler(AoDigitar), true);
+        ListaCards.AddHandler(UIElement.GotKeyboardFocusEvent, new KeyboardFocusChangedEventHandler(AoFocar), true);
+        ListaCards.AddHandler(UIElement.PreviewMouseLeftButtonDownEvent, new MouseButtonEventHandler(AoClicar), true);
+        ListaCards.AddHandler(UIElement.KeyDownEvent, new KeyEventHandler(AoTeclar), true);
+
         Loaded += async (_, _) => await IniciarAsync();
     }
 
@@ -89,7 +111,7 @@ public partial class MainWindow : Window
         EsconderErro();
         PainelEstado.Visibility = Visibility.Visible;
         TextoEstado.Text = "Carregando produtos…";
-        ListaCategorias.Children.Clear();
+        ListaCards.ItemsSource = null;
 
         // Relê o appsettings.json a CADA carga, não só na subida do processo.
         // Como o app fica residente na bandeja, ler uma vez só significaria que
@@ -134,13 +156,14 @@ public partial class MainWindow : Window
             return;
         }
 
-        AplicarModoHomologacao(config);
+        foreach (var produto in _produtos)
+        {
+            produto.Editavel = _diaAberto;
+            produto.PropertyChanged += AoMudarProduto;
+        }
 
-        // Título fixo. O operador continua sendo buscado e continua indo para
-        // logest_vitrine.codusu — só deixou de aparecer no cabeçalho. Quem
-        // mexeu na vitrine segue registrado; o que sai é a exibição.
-        TituloCabecalho.Text = "Manutenção Vitrine";
-        AvisoDiaFechado.Visibility = _diaAberto ? Visibility.Collapsed : Visibility.Visible;
+        AplicarModoHomologacao(config);
+        AtualizarTitulo();
 
         if (_produtos.Count == 0)
         {
@@ -150,282 +173,141 @@ public partial class MainWindow : Window
         }
 
         PainelEstado.Visibility = Visibility.Collapsed;
-        MontarLista();
+        MontarFaixas(forcar: true);
         AtualizarBarraSalvar();
     }
 
-    // Pincéis resolvidos uma vez. FindResource percorre a árvore de recursos a
-    // cada chamada, e antes isso acontecia várias vezes POR LINHA da lista.
-    private Brush? _pTintaFraca, _pMarcaEscura, _pSuperficie, _pVermelho;
-    private Brush? _pLinha;
-    private Style? _sBotaoCategoria, _sBotaoRedondo, _sCampo;
-
-    private void ResolverRecursos()
+    /// <summary>
+    /// O título carrega o estado que antes ocupava faixas no topo. O modo
+    /// homologação grava no estoque de verdade e o dia fechado impede salvar —
+    /// os dois precisam de sinal, mas não de uma tarja permanente.
+    /// </summary>
+    private void AtualizarTitulo()
     {
-        _pTintaFraca ??= (Brush)FindResource("TintaFraca");
-        _pMarcaEscura ??= (Brush)FindResource("MarcaEscura");
-        _pSuperficie ??= (Brush)FindResource("Superficie");
-        _pVermelho ??= (Brush)FindResource("Vermelho");
-        _pLinha ??= new SolidColorBrush(Color.FromArgb(0x1A, 0, 0, 0));
-        if (_pLinha.CanFreeze) _pLinha.Freeze();
-        _sBotaoCategoria ??= (Style)FindResource("BotaoCategoria");
-        _sBotaoRedondo ??= (Style)FindResource("BotaoRedondo");
-        _sCampo ??= (Style)FindResource("CampoQuantidade");
+        var partes = new List<string> { "Manutenção Vitrine" };
+        if (_modoHomologacao) partes.Add("homologação");
+        if (!_diaAberto) partes.Add("dia fechado");
+        TituloCabecalho.Text = string.Join(" · ", partes);
     }
 
-    private void MontarLista()
+    // ------------------------------------------------------------- as faixas
+
+    private int ColunasQueCabem()
     {
-        ResolverRecursos();
-        ListaCategorias.Children.Clear();
-        // Agrupado preservando a ordem da consulta (categoria, nome), igual ao
-        // groupBy do app web.
-        foreach (var grupo in _produtos.GroupBy(p => p.Categoria))
-        {
-            ListaCategorias.Children.Add(MontarCategoria(grupo.Key, [.. grupo]));
-        }
+        // Desconta a barra de rolagem: sem isso o último card de cada faixa
+        // fica meio escondido quando a lista passa a rolar.
+        var largura = ListaCards.ActualWidth - 16;
+        return largura <= 0 ? 1 : Math.Max(1, (int)(largura / LarguraDoCard));
+    }
+
+    private void MontarFaixas(bool forcar = false)
+    {
+        var colunas = ColunasQueCabem();
+
+        // Só reorganiza quando a quantidade por linha muda de fato. Arrastar a
+        // borda da janela dispara SizeChanged a cada pixel, e remontar a lista
+        // em cada um deles engasga a máquina do caixa.
+        if (!forcar && colunas == _colunas) return;
+        _colunas = colunas;
+
+        _faixas.Clear();
+        for (var i = 0; i < _produtos.Count; i += colunas)
+            _faixas.Add(_produtos.GetRange(i, Math.Min(colunas, _produtos.Count - i)));
+
+        ListaCards.ItemsSource = null;
+        ListaCards.ItemsSource = _faixas;
+    }
+
+    private void ListaCards_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (e.WidthChanged) MontarFaixas();
+    }
+
+    // ------------------------------------------------------- campo do card
+
+    private void AoMudarProduto(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ProdutoVitrine.Pendente)) AtualizarBarraSalvar();
+    }
+
+    private static void AoDigitar(object sender, TextCompositionEventArgs e)
+    {
+        if (e.OriginalSource is TextBox && !e.Text.All(char.IsDigit)) e.Handled = true;
+    }
+
+    // Seleciona tudo ao focar: tocar no campo e digitar substitui, em vez de
+    // acrescentar ao lado (mesma correção feita na versão Electron).
+    private static void AoFocar(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (e.OriginalSource is TextBox campo) campo.SelectAll();
+    }
+
+    private static void AoClicar(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is not TextBox campo && e.Source is not TextBox) return;
+        campo = (TextBox)(e.OriginalSource as TextBox ?? e.Source);
+        if (campo.IsKeyboardFocusWithin) return;
+        e.Handled = true;
+        campo.Focus();
     }
 
     /// <summary>
-    /// Monta o card da categoria com o cabeçalho pronto e o conteúdo VAZIO.
-    /// As linhas nascem na primeira vez que a categoria é aberta, e a partir
-    /// daí abrir/fechar só troca Visibility.
-    ///
-    /// Antes, cada clique chamava MontarLista() e reconstruía a lista INTEIRA —
-    /// todas as categorias, todas as linhas, inclusive as que nem estavam na
-    /// tela. Num caixa fraco isso é o travamento que aparecia ao abrir uma
-    /// categoria e ao rolar. O React não sofria disso porque só remonta o que
-    /// mudou; aqui a reconstrução era explícita e minha.
+    /// Enter salta para o card seguinte, na ordem da tela. É o que torna
+    /// viável lançar a vitrine inteira sem tirar a mão do teclado.
     /// </summary>
-    private Border MontarCategoria(string categoria, List<ProdutoVitrine> itens)
+    private void AoTeclar(object sender, KeyEventArgs e)
     {
-        var aberta = _categoriasAbertas.Contains(categoria);
+        if (e.Key != Key.Enter || e.OriginalSource is not TextBox campo) return;
+        e.Handled = true;
 
-        // Colunas * + Auto: o nome da categoria cede espaço e corta com
-        // reticências; a contagem e a seta mantêm o tamanho. Sem isso os dois
-        // ocupavam a MESMA célula e se sobrepunham em janela estreita.
-        var cabecalhoInterno = new Grid();
-        cabecalhoInterno.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        cabecalhoInterno.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        if (campo.DataContext is not ProdutoVitrine atual) return;
 
-        var nomeCategoria = new TextBlock
+        var i = _produtos.IndexOf(atual);
+        if (i < 0 || i + 1 >= _produtos.Count)
         {
-            Text = categoria,
-            FontWeight = FontWeights.SemiBold,
-            FontSize = 14,
-            VerticalAlignment = VerticalAlignment.Center,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-            Margin = new Thickness(0, 0, 12, 0),
-        };
-        Grid.SetColumn(nomeCategoria, 0);
-        cabecalhoInterno.Children.Add(nomeCategoria);
-
-        var seta = new TextBlock
-        {
-            Text = aberta ? "▲" : "▼",
-            FontSize = 10,
-            Foreground = _pMarcaEscura,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(8, 0, 0, 0),
-        };
-
-        var direita = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        direita.Children.Add(new TextBlock
-        {
-            Text = $"{itens.Count} {(itens.Count == 1 ? "item" : "itens")}",
-            FontSize = 13,
-            Foreground = _pTintaFraca,
-            VerticalAlignment = VerticalAlignment.Center,
-        });
-        direita.Children.Add(seta);
-        Grid.SetColumn(direita, 1);
-        cabecalhoInterno.Children.Add(direita);
-
-        var conteudo = new StackPanel();
-        var caixaConteudo = new Border
-        {
-            BorderBrush = _pLinha,
-            BorderThickness = new Thickness(0, 1, 0, 0),
-            Padding = new Thickness(20, 0, 20, 0),
-            Child = conteudo,
-            Visibility = aberta ? Visibility.Visible : Visibility.Collapsed,
-        };
-
-        void PreencherSePreciso()
-        {
-            if (conteudo.Children.Count > 0) return;   // já montado antes
-            for (var i = 0; i < itens.Count; i++)
-            {
-                if (i > 0) conteudo.Children.Add(new Border { Height = 1, Background = _pLinha });
-                conteudo.Children.Add(MontarLinha(itens[i]));
-            }
+            // Último da lista: fica onde está. Voltar ao começo faria o
+            // operador perder o lugar sem perceber.
+            campo.SelectAll();
+            return;
         }
 
-        if (aberta) PreencherSePreciso();
-
-        var botao = new Button { Style = _sBotaoCategoria, Content = cabecalhoInterno };
-        botao.Click += (_, _) =>
-        {
-            var abrindo = !_categoriasAbertas.Contains(categoria);
-            if (abrindo) { _categoriasAbertas.Add(categoria); PreencherSePreciso(); }
-            else _categoriasAbertas.Remove(categoria);
-
-            caixaConteudo.Visibility = abrindo ? Visibility.Visible : Visibility.Collapsed;
-            seta.Text = abrindo ? "▲" : "▼";
-        };
-
-        var corpo = new StackPanel();
-        corpo.Children.Add(botao);
-        corpo.Children.Add(caixaConteudo);
-
-        return new Border
-        {
-            Background = _pSuperficie,
-            CornerRadius = new CornerRadius(16),
-            Margin = new Thickness(0, 0, 0, 12),
-            Child = corpo,
-            ClipToBounds = true,
-        };
+        FocarProduto(_produtos[i + 1]);
     }
 
-    private Grid MontarLinha(ProdutoVitrine p)
+    private void FocarProduto(ProdutoVitrine produto)
     {
-        var linha = new Grid { Margin = new Thickness(0, 14, 0, 14) };
-        linha.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        linha.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var faixa = _faixas.FirstOrDefault(f => f.Contains(produto));
+        if (faixa is null) return;
 
-        var esquerda = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        esquerda.Children.Add(new TextBlock
+        ListaCards.ScrollIntoView(faixa);
+
+        // Com virtualização o card pode ainda não existir na árvore visual: o
+        // ScrollIntoView só agenda a rolagem. Buscar o campo agora acharia
+        // nada, então espera o layout acontecer.
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
         {
-            Text = p.Nome,
-            FontSize = 14,
-            FontWeight = FontWeights.Medium,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-        });
-        var rotuloPendente = new TextBlock
-        {
-            FontSize = 12,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = _pMarcaEscura,
-            Visibility = Visibility.Collapsed,
-        };
-        esquerda.Children.Add(rotuloPendente);
-        esquerda.Margin = new Thickness(0, 0, 12, 0);
-        Grid.SetColumn(esquerda, 0);
-        linha.Children.Add(esquerda);
+            var destino = Descendentes(ListaCards)
+                .OfType<TextBox>()
+                .FirstOrDefault(c => ReferenceEquals(c.DataContext, produto));
 
-        var campo = new TextBox { Style = _sCampo, IsEnabled = _diaAberto, Margin = new Thickness(8, 0, 8, 0) };
-        var botaoMenos = new Button { Style = _sBotaoRedondo, Content = "−" };
-        var botaoMais = new Button { Style = _sBotaoRedondo, Content = "+", IsEnabled = _diaAberto };
-
-        var aviso = new TextBlock
-        {
-            FontSize = 12,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = _pVermelho,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            TextAlignment = TextAlignment.Right,
-            Margin = new Thickness(0, 6, 0, 0),
-            TextWrapping = TextWrapping.Wrap,
-            MaxWidth = 240,
-            Visibility = Visibility.Collapsed,
-        };
-
-        DispatcherTimer? timerAviso = null;
-        void Avisar(string texto)
-        {
-            aviso.Text = texto;
-            aviso.Visibility = Visibility.Visible;
-            timerAviso?.Stop();
-            // 4 segundos, igual ao aviso da versão Electron.
-            timerAviso = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
-            timerAviso.Tick += (s, _) =>
-            {
-                aviso.Visibility = Visibility.Collapsed;
-                ((DispatcherTimer)s!).Stop();
-            };
-            timerAviso.Start();
-        }
-
-        void Pintar()
-        {
-            campo.Text = Formatar(p.Total);
-
-            // Antes o "−" só desfazia o que fora acrescentado nesta sessão.
-            // Agora reduz o saldo de verdade, e o limite é o zero.
-            botaoMenos.IsEnabled = _diaAberto && p.Total > 0;
-
-            rotuloPendente.Text = p.Pendente >= 0
-                ? $"+{Formatar(p.Pendente)} a salvar"
-                : $"−{Formatar(-p.Pendente)} a salvar";
-            rotuloPendente.Visibility = p.Pendente != 0 ? Visibility.Visible : Visibility.Collapsed;
-            AtualizarBarraSalvar();
-        }
-
-        // Seleciona tudo ao focar: tocar no campo e digitar substitui, em vez de
-        // acrescentar ao lado (mesma correção feita na versão Electron).
-        campo.GotKeyboardFocus += (_, _) => campo.SelectAll();
-        campo.PreviewMouseLeftButtonDown += (_, e) =>
-        {
-            if (!campo.IsKeyboardFocusWithin) { e.Handled = true; campo.Focus(); }
-        };
-        campo.PreviewTextInput += (_, e) =>
-        {
-            if (!e.Text.All(char.IsDigit)) e.Handled = true;
-        };
-        campo.KeyDown += (_, e) =>
-        {
-            if (e.Key != Key.Enter) return;
-            e.Handled = true;
-
-            // Não precisa gravar à mão: mudar o foco dispara o LostFocus deste
-            // campo, que é quem aplica o valor digitado e a trava do saldo.
-            FocarProximoCampo(campo);
-        };
-        campo.LostFocus += (_, _) =>
-        {
-            var texto = campo.Text.Trim();
-
-            // Texto inválido volta para o que estava na tela, não para o saldo
-            // do banco: quem digitou errado não perde o ajuste que já tinha.
-            var alvo = decimal.TryParse(texto, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n)
-                ? n
-                : p.Total;
-
-            // A única trava que sobrou: saldo negativo não existe na vitrine.
-            if (alvo < 0)
-            {
-                Avisar("A quantidade não pode ficar negativa.");
-                alvo = 0;
-            }
-
-            p.Pendente = alvo - p.QuantidadeSalva;
-            Pintar();
-        };
-
-        botaoMais.Click += (_, _) => { p.Pendente += 1; Pintar(); };
-        botaoMenos.Click += (_, _) => { p.Pendente = Math.Max(-p.QuantidadeSalva, p.Pendente - 1); Pintar(); };
-
-        var controles = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-        // Espaçamento por Margin no campo, e não por Borders vazias: são dois
-        // elementos visuais a menos por linha, e a lista tem dezenas delas.
-        controles.Children.Add(botaoMenos);
-        controles.Children.Add(campo);
-        controles.Children.Add(botaoMais);
-
-        var direita = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        direita.Children.Add(controles);
-        direita.Children.Add(aviso);
-        Grid.SetColumn(direita, 1);
-        linha.Children.Add(direita);
-
-        Pintar();
-        return linha;
+            if (destino is null) return;
+            destino.Focus();
+            destino.SelectAll();
+        }));
     }
+
+    private static IEnumerable<DependencyObject> Descendentes(DependencyObject raiz)
+    {
+        var quantos = VisualTreeHelper.GetChildrenCount(raiz);
+        for (var i = 0; i < quantos; i++)
+        {
+            var filho = VisualTreeHelper.GetChild(raiz, i);
+            yield return filho;
+            foreach (var neto in Descendentes(filho)) yield return neto;
+        }
+    }
+
+    // ------------------------------------------------------------ o restante
 
     /// <summary>
     /// Modo de teste: já deixa os itens ZERADOS com a quantidade configurada
@@ -440,39 +322,15 @@ public partial class MainWindow : Window
     /// </summary>
     private void AplicarModoHomologacao(Configuracao config)
     {
-        if (!config.ModoHomologacao)
-        {
-            AvisoHomologacao.Visibility = Visibility.Collapsed;
-            return;
-        }
+        _modoHomologacao = config.ModoHomologacao;
+        if (!_modoHomologacao) return;
 
-        var preenchidos = 0;
         foreach (var produto in _produtos)
         {
             if (produto.QuantidadeSalva != 0) continue;
             produto.Pendente = config.QuantidadeDeHomologacao;
-            preenchidos++;
         }
-
-        // Aviso permanente e vermelho: deixado ligado sem querer, alguém salva
-        // 100 de tudo achando que é o comportamento normal. A gravação vai
-        // para o estoque de verdade.
-        // Logo depois de salvar nada está zerado, e "0 item(ns)" soaria como
-        // defeito em vez de "já está tudo abastecido".
-        var oQueFoiFeito = preenchidos > 0
-            ? $"{preenchidos} item(ns) zerado(s) já estão com {Formatar(config.QuantidadeDeHomologacao)} pendente"
-            : "nenhum item zerado no momento — os que têm saldo ficaram como estavam";
-
-        TextoHomologacao.Text =
-            $"MODO HOMOLOGAÇÃO LIGADO — {oQueFoiFeito}. " +
-            "Salvar grava no estoque de verdade. Para desligar, ponha ModoHomologacao em false no appsettings.json.";
-        AvisoHomologacao.Visibility = Visibility.Visible;
     }
-
-    private static string Formatar(decimal v) =>
-        v == Math.Floor(v)
-            ? ((long)v).ToString(CultureInfo.InvariantCulture)
-            : v.ToString("0.##", CultureInfo.InvariantCulture);
 
     private void AtualizarBarraSalvar()
     {
@@ -521,56 +379,4 @@ public partial class MainWindow : Window
     }
 
     private void EsconderErro() => AvisoErro.Visibility = Visibility.Collapsed;
-    /// <summary>
-    /// Leva o foco para o próximo campo de quantidade, na ordem da tela.
-    ///
-    /// Digitar a quantidade e apertar Enter para cair no item de baixo é o que
-    /// torna viável lançar a vitrine inteira sem tirar a mão do teclado.
-    /// </summary>
-    private void FocarProximoCampo(TextBox atual)
-    {
-        var campos = CamposDeQuantidade();
-        var atualNaLista = campos.IndexOf(atual);
-
-        if (atualNaLista < 0 || atualNaLista + 1 >= campos.Count)
-        {
-            // Último campo à vista: fica onde está, com o texto selecionado.
-            // Pular para o começo faria o operador perder o lugar sem perceber.
-            atual.SelectAll();
-            return;
-        }
-
-        var proximo = campos[atualNaLista + 1];
-        proximo.Focus();
-
-        // A lista é rolável e o próximo item pode estar fora da janela — sem
-        // isto o foco iria para um campo que ninguém está vendo.
-        proximo.BringIntoView();
-    }
-
-    /// <summary>
-    /// Os campos de quantidade na ordem em que aparecem na tela.
-    ///
-    /// Percorre a árvore visual em vez de guardar uma lista paralela: as linhas
-    /// nascem quando a categoria é aberta pela primeira vez, então uma lista em
-    /// ordem de criação não seria a ordem da tela. Categoria fechada fica de
-    /// fora sozinha, porque o conteúdo dela é Collapsed e o IsVisible dos
-    /// filhos vira false.
-    /// </summary>
-    private List<TextBox> CamposDeQuantidade() =>
-        [.. Descendentes(ListaCategorias)
-            .OfType<TextBox>()
-            .Where(c => c.Style == _sCampo && c.IsVisible && c.IsEnabled)];
-
-    private static IEnumerable<DependencyObject> Descendentes(DependencyObject raiz)
-    {
-        var quantos = VisualTreeHelper.GetChildrenCount(raiz);
-        for (var i = 0; i < quantos; i++)
-        {
-            var filho = VisualTreeHelper.GetChild(raiz, i);
-            yield return filho;
-            foreach (var neto in Descendentes(filho)) yield return neto;
-        }
-    }
-
 }

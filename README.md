@@ -42,17 +42,53 @@ Se nenhuma instância estiver de pé (depois de uma queda, por exemplo), a
 chamada do COBOL vira a instância normal e abre a janela. Não existe estado
 ruim para tratar.
 
+## A tela
+
+Um card por produto, todos soltos numa grade que reflui conforme a largura da
+janela. Cada card tem a foto, o nome e o campo de quantidade — digitável, sem
+os botões `+` e `−`.
+
+Não há agrupamento por categoria. Até 2026-09-24 a lista era uma sanfona por
+grupo; hoje os produtos aparecem todos, em sequência.
+
+### Por que a lista é virtualizada
+
+Tirar a sanfona significa que todos os produtos passam a existir ao mesmo
+tempo — e com foto. Era justamente a montagem de tudo de uma vez que travava a
+máquina do caixa.
+
+O `VirtualizingStackPanel` do WPF só trabalha em uma direção, e um
+`WrapPanel` comum não virtualiza nada. Por isso os produtos são agrupados em
+**faixas** horizontais antes de entrar na lista, e a virtualização acontece por
+faixa. Quantos cards cabem por faixa é recalculado quando a largura muda — e só
+quando o número muda de fato, senão arrastar a borda da janela remontaria a
+lista a cada pixel.
+
+Medido com 130 produtos numa janela de 980x620: **12 cards montados**, não 130.
+
+### O topo tem só o título e o Fechar
+
+Nada de tarjas permanentes. O que era faixa passou para o próprio título:
+
+| Situação | Título |
+|---|---|
+| normal | Manutenção Vitrine |
+| modo homologação ligado | Manutenção Vitrine · homologação |
+| dia fechado | Manutenção Vitrine · dia fechado |
+
+A faixa de **erro** continua, porque não é texto fixo: só aparece quando uma
+gravação falha, e é a única forma de saber que algo não passou.
+
 ## Lançar pelo teclado
 
 No campo de quantidade, **Enter salta para o item de baixo**, já com o texto
 selecionado — digitar substitui, não acrescenta ao lado. É o que torna viável
 lançar a vitrine inteira sem tirar a mão do teclado.
 
-O salto segue a ordem da tela e pula categorias fechadas, porque percorre a
-árvore visual em vez de uma lista em ordem de criação: as linhas nascem quando
-a categoria é aberta pela primeira vez, então as duas ordens não coincidem. No
-último campo à vista o foco fica onde está — voltar ao começo faria o operador
-perder o lugar sem perceber.
+O salto segue a ordem dos produtos, não a da tela: com a lista virtualizada, o
+card seguinte pode nem existir ainda na árvore visual. O programa rola até ele,
+espera o layout e só então põe o foco. No último item o foco fica onde está —
+voltar ao começo faria o operador perder o lugar sem perceber.
 
 Mudar o foco é o que grava o valor: o mesmo `LostFocus` que já aplicava a
 trava do saldo.
@@ -67,8 +103,9 @@ Para testar sem digitar item por item. No `appsettings.json`:
 ```
 
 Com isso, todo item de vitrine **zerado** já abre com 100 pendente — basta
-salvar uma vez e vale para todos, inclusive os de categorias que você nunca
-abriu (o Salvar percorre os produtos, não a tela).
+salvar uma vez e vale para todos, inclusive os que estão fora da área visível
+(o Salvar percorre os produtos, não a tela — o que importa com a lista
+virtualizada, onde a maioria dos cards nem existe na árvore).
 
 **Só os zerados.** Quem já tem saldo mantém o que tem: somar em cima inflaria
 um número real. Na prática a vitrine zera no fechamento do dia, que é
@@ -102,8 +139,7 @@ a regra foi removida a pedido, e ficou só o piso:
 
 | Onde | Como |
 |---|---|
-| Botão `−` | desabilitado quando o total já está em zero |
-| Campo de quantidade | valor negativo volta para zero, com aviso vermelho por 4 s |
+| Campo de quantidade | valor negativo vira zero, no setter de `Total` — o único ponto por onde toda digitação passa |
 | Banco | recusa o ajuste se o saldo ficaria negativo |
 
 #### O ajuste é relativo, não absoluto

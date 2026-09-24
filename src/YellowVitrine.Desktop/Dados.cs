@@ -1,20 +1,83 @@
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Data;
 using System.Globalization;
+using System.Windows.Media;
 using System.Threading.Tasks;
 using Microsoft.Data.SqlClient;
 
 namespace YellowVitrine.Desktop;
 
-public sealed record ProdutoVitrine(int Codfic, string Nome, decimal QuantidadeSalva, string Categoria)
+/// <summary>
+/// Um produto da vitrine, ligado diretamente ao card na tela.
+///
+/// Virou classe com notificação: a lista é virtualizada, então os cards são
+/// criados e RECICLADOS conforme a rolagem. Sem INotifyPropertyChanged, um
+/// card reaproveitado mostraria o número do produto anterior.
+/// </summary>
+public sealed class ProdutoVitrine(int codfic, string nome, decimal quantidadeSalva, string categoria)
+    : INotifyPropertyChanged
 {
+    public int Codfic { get; } = codfic;
+    public string Nome { get; } = nome;
+    public decimal QuantidadeSalva { get; } = quantidadeSalva;
+    public string Categoria { get; } = categoria;
+
+    private decimal _pendente;
+
     /// <summary>
     /// Quanto a pessoa alterou nesta sessão e ainda não salvou. Pode ser
-    /// NEGATIVO: a vitrine passou a aceitar redução. O que continua valendo é
-    /// que o total (salvo + pendente) nunca fica abaixo de zero.
+    /// NEGATIVO: a vitrine aceita redução. O que continua valendo é que o
+    /// total (salvo + pendente) nunca fica abaixo de zero.
     /// </summary>
-    public decimal Pendente { get; set; }
-    public decimal Total => QuantidadeSalva + Pendente;
+    public decimal Pendente
+    {
+        get => _pendente;
+        set
+        {
+            if (_pendente == value) return;
+            _pendente = value;
+            Avisar(nameof(Pendente));
+            Avisar(nameof(Total));
+            Avisar(nameof(TextoPendente));
+        }
+    }
+
+    /// <summary>
+    /// O número que aparece e se digita no card.
+    ///
+    /// É ele que o campo edita, e não o Pendente: o operador pensa em "quanto
+    /// tem", não em "quanto mudei". O piso do zero mora aqui, no único lugar
+    /// por onde toda digitação passa.
+    /// </summary>
+    public decimal Total
+    {
+        get => QuantidadeSalva + _pendente;
+        set => Pendente = (value < 0 ? 0 : value) - QuantidadeSalva;
+    }
+
+    public string TextoPendente => _pendente == 0
+        ? ""
+        : _pendente > 0
+            ? $"+{Texto(_pendente)} a salvar"
+            : $"−{Texto(-_pendente)} a salvar";
+
+    /// <summary>Dia fechado desabilita o campo — não há turno para registrar quem mexeu.</summary>
+    public bool Editavel { get; set; }
+
+    /// <summary>
+    /// Foto do produto. Fica nula até existir o programa que baixa as imagens
+    /// do FAMICD; o card já reserva o espaço para não mudar de tamanho depois.
+    /// </summary>
+    public ImageSource? Imagem { get; set; }
+
+    private static string Texto(decimal v) =>
+        v == Math.Floor(v)
+            ? ((long)v).ToString(CultureInfo.InvariantCulture)
+            : v.ToString("0.##", CultureInfo.InvariantCulture);
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void Avisar(string prop) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(prop));
 }
 
 public sealed record Operador(int Codusu, string Apelido);
