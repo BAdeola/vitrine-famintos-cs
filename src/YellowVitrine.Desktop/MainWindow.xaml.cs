@@ -54,16 +54,34 @@ public partial class MainWindow : Window
     /// Node de propósito: as duas versões convivem, e reconfigurar uma não pode
     /// quebrar a outra.
     /// </summary>
-    private static string LerConnectionString()
+    private sealed record Configuracao(string ConnectionString, bool ModoHomologacao, decimal QuantidadeDeHomologacao);
+
+    private static Configuracao LerConfiguracao()
     {
         var caminho = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
         if (!File.Exists(caminho))
             throw new FileNotFoundException($"Arquivo de configuração não encontrado: {caminho}");
 
         using var doc = JsonDocument.Parse(File.ReadAllText(caminho));
-        if (!doc.RootElement.TryGetProperty("ConnectionString", out var cs) || string.IsNullOrWhiteSpace(cs.GetString()))
+        var raiz = doc.RootElement;
+
+        if (!raiz.TryGetProperty("ConnectionString", out var cs) || string.IsNullOrWhiteSpace(cs.GetString()))
             throw new InvalidOperationException("appsettings.json não tem a chave \"ConnectionString\".");
-        return cs.GetString()!;
+
+        // As duas de homologação são opcionais: um appsettings.json de
+        // instalação anterior não as tem, e a ausência significa desligado —
+        // que é o comportamento normal. Atualizar o programa nunca liga o modo
+        // de teste sozinho.
+        var modo = raiz.TryGetProperty("ModoHomologacao", out var m) && m.ValueKind == JsonValueKind.True;
+
+        var quantidade = raiz.TryGetProperty("QuantidadeDeHomologacao", out var q)
+            && q.ValueKind == JsonValueKind.Number
+            && q.TryGetDecimal(out var valor)
+            && valor > 0
+                ? valor
+                : 100m;
+
+        return new Configuracao(cs.GetString()!, modo, quantidade);
     }
 
     private async Task CarregarAsync()
@@ -78,9 +96,11 @@ public partial class MainWindow : Window
         // corrigir a senha do banco no arquivo não teria efeito nenhum até
         // alguém encerrar pela bandeja — armadilha silenciosa, e o sintoma
         // (segue sem conectar) não aponta pra causa.
+        Configuracao config;
         try
         {
-            _dados = new Dados(LerConnectionString());
+            config = LerConfiguracao();
+            _dados = new Dados(config.ConnectionString);
         }
         catch (Exception ex)
         {
@@ -113,6 +133,8 @@ public partial class MainWindow : Window
             TextoEstado.Text = "Não foi possível carregar a vitrine.";
             return;
         }
+
+        AplicarModoHomologacao(config);
 
         TituloCabecalho.Text = _operador is not null
             ? $"Turno de {_operador.Apelido.ToUpperInvariant()}"
@@ -388,6 +410,48 @@ public partial class MainWindow : Window
 
         Pintar();
         return linha;
+    }
+
+    /// <summary>
+    /// Modo de teste: já deixa os itens ZERADOS com a quantidade configurada
+    /// pendente, para não ter que digitar item por item a cada dia aberto.
+    ///
+    /// Só nos zerados, de propósito. Quem já tem saldo mantém o que tem —
+    /// somar em cima inflaria um número real, e a vitrine zera justamente no
+    /// fechamento do dia, que é quando isto serve.
+    ///
+    /// Nada é gravado aqui: o valor entra como PENDENTE e continua passando
+    /// pelo mesmo Salvar, com as mesmas travas.
+    /// </summary>
+    private void AplicarModoHomologacao(Configuracao config)
+    {
+        if (!config.ModoHomologacao)
+        {
+            AvisoHomologacao.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var preenchidos = 0;
+        foreach (var produto in _produtos)
+        {
+            if (produto.QuantidadeSalva != 0) continue;
+            produto.Pendente = config.QuantidadeDeHomologacao;
+            preenchidos++;
+        }
+
+        // Aviso permanente e vermelho: deixado ligado sem querer, alguém salva
+        // 100 de tudo achando que é o comportamento normal. A gravação vai
+        // para o estoque de verdade.
+        // Logo depois de salvar nada está zerado, e "0 item(ns)" soaria como
+        // defeito em vez de "já está tudo abastecido".
+        var oQueFoiFeito = preenchidos > 0
+            ? $"{preenchidos} item(ns) zerado(s) já estão com {Formatar(config.QuantidadeDeHomologacao)} pendente"
+            : "nenhum item zerado no momento — os que têm saldo ficaram como estavam";
+
+        TextoHomologacao.Text =
+            $"MODO HOMOLOGAÇÃO LIGADO — {oQueFoiFeito}. " +
+            "Salvar grava no estoque de verdade. Para desligar, ponha ModoHomologacao em false no appsettings.json.";
+        AvisoHomologacao.Visibility = Visibility.Visible;
     }
 
     private static string Formatar(decimal v) =>

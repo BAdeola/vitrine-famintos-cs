@@ -35,6 +35,16 @@
                                Text="Dia fechado — nenhuma alteração pode ser salva agora. Não há turno de caixa aberto."/>
                 </Border>
 
+                <!-- Modo homologação escreve no estoque de verdade. Deixado
+                     ligado sem querer, alguém salva 100 de tudo achando que é
+                     o normal — por isso o aviso é permanente e vermelho. -->
+                <Border x:Name="AvisoHomologacao" Visibility="Collapsed"
+                        Background="{StaticResource VermelhoClaro}" CornerRadius="12"
+                        Padding="16,12" Margin="0,0,0,16">
+                    <TextBlock x:Name="TextoHomologacao" Foreground="{StaticResource Vermelho}"
+                               FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                </Border>
+
                 <Border x:Name="AvisoErro" Visibility="Collapsed"
                         Background="{StaticResource VermelhoClaro}" CornerRadius="12"
                         Padding="16,12" Margin="0,0,0,16">

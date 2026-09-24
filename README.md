@@ -57,6 +57,38 @@ perder o lugar sem perceber.
 Mudar o foco é o que grava o valor: o mesmo `LostFocus` que já aplicava a
 trava do saldo.
 
+## Modo homologação
+
+Para testar sem digitar item por item. No `appsettings.json`:
+
+```json
+"ModoHomologacao": true,
+"QuantidadeDeHomologacao": 100
+```
+
+Com isso, todo item de vitrine **zerado** já abre com 100 pendente — basta
+salvar uma vez e vale para todos, inclusive os de categorias que você nunca
+abriu (o Salvar percorre os produtos, não a tela).
+
+**Só os zerados.** Quem já tem saldo mantém o que tem: somar em cima inflaria
+um número real. Na prática a vitrine zera no fechamento do dia, que é
+justamente quando isto serve.
+
+Nada é gravado direto: o valor entra como **pendente** e passa pelo mesmo
+Salvar, com as mesmas travas. Depois de salvar, os itens deixam de estar
+zerados, então recarregar não empilha outro 100 por cima.
+
+Enquanto o modo está ligado, a tela mostra um aviso vermelho permanente. Não é
+decoração: a gravação vai para o estoque de verdade, e deixado ligado sem
+querer alguém salva 100 de tudo achando que é o comportamento normal.
+
+Duas coisas que valem saber:
+
+- **Ausente é desligado.** Um `appsettings.json` de instalação anterior não
+  tem essas chaves, e atualizar o programa nunca liga o modo sozinho.
+- **`true` sem aspas.** `"true"` entre aspas é texto, não booleano, e o modo
+  fica desligado. O sinal é o aviso vermelho não aparecer.
+
 ## Regras de negócio
 
 Portadas fielmente do backend Node da versão anterior. As três valem ao mesmo
