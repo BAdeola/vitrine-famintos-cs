@@ -136,9 +136,10 @@ public partial class MainWindow : Window
 
         AplicarModoHomologacao(config);
 
-        TituloCabecalho.Text = _operador is not null
-            ? $"Turno de {_operador.Apelido.ToUpperInvariant()}"
-            : "Atualização de Vitrine";
+        // Título fixo. O operador continua sendo buscado e continua indo para
+        // logest_vitrine.codusu — só deixou de aparecer no cabeçalho. Quem
+        // mexeu na vitrine segue registrado; o que sai é a exibição.
+        TituloCabecalho.Text = "Manutenção Vitrine";
         AvisoDiaFechado.Visibility = _diaAberto ? Visibility.Collapsed : Visibility.Visible;
 
         if (_produtos.Count == 0)
