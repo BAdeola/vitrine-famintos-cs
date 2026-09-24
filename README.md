@@ -94,16 +94,31 @@ Duas coisas que valem saber:
 Portadas fielmente do backend Node da versão anterior. As três valem ao mesmo
 tempo, em camadas independentes.
 
-### Nunca reduzir, só acrescentar
+### Alteração livre, sem ficar negativo
 
-O estoque de vitrine **nunca** pode ser diminuído pela tela — só somado.
-Garantido em três pontos:
+A tela altera o saldo para mais **e para menos**, a qualquer momento. Até
+2026-09-24 valia o oposto — "nunca reduzir, só acrescentar" — em três camadas;
+a regra foi removida a pedido, e ficou só o piso:
 
 | Onde | Como |
 |---|---|
-| Botão `−` | desabilitado quando não há quantidade pendente |
-| Campo de quantidade | valor menor que o salvo volta para o salvo, com aviso vermelho por 4 s |
-| Banco | o `UPDATE` só faz `quantidade + @delta`, e delta ≤ 0 é rejeitado antes |
+| Botão `−` | desabilitado quando o total já está em zero |
+| Campo de quantidade | valor negativo volta para zero, com aviso vermelho por 4 s |
+| Banco | recusa o ajuste se o saldo ficaria negativo |
+
+#### O ajuste é relativo, não absoluto
+
+O que vai para o banco é o **delta** (`quantidade + @delta`), não o número que
+aparece na tela. Isso importa na redução: entre o operador ver a tela e clicar
+em salvar, uma venda pode ter baixado o saldo. Somando o ajuste, essa venda é
+preservada; gravando o valor absoluto, ela sumiria sem deixar rastro.
+
+Se mesmo assim o resultado ficaria negativo, a gravação **falha para aquele
+item** e a tela mostra o motivo com o saldo novo — em vez de gravar um número
+que ninguém pediu. Os demais itens são salvos normalmente.
+
+O método no `Dados.cs` chama-se `AjustarAsync`. Era `AdicionarAsync` enquanto
+só somava.
 
 ### Dia aberto
 

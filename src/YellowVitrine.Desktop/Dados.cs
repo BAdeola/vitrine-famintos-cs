@@ -8,7 +8,11 @@ namespace YellowVitrine.Desktop;
 
 public sealed record ProdutoVitrine(int Codfic, string Nome, decimal QuantidadeSalva, string Categoria)
 {
-    /// <summary>Quanto a pessoa acrescentou nesta sessão e ainda não salvou. Nunca negativo.</summary>
+    /// <summary>
+    /// Quanto a pessoa alterou nesta sessão e ainda não salvou. Pode ser
+    /// NEGATIVO: a vitrine passou a aceitar redução. O que continua valendo é
+    /// que o total (salvo + pendente) nunca fica abaixo de zero.
+    /// </summary>
     public decimal Pendente { get; set; }
     public decimal Total => QuantidadeSalva + Pendente;
 }
@@ -108,17 +112,29 @@ public sealed class Dados(string connectionString)
     }
 
     /// <summary>
-    /// Soma <paramref name="delta"/> ao estoque e grava a linha de auditoria,
-    /// atomicamente. O UPDLOCK/HOLDLOCK na leitura mais um UPDATE que só
-    /// SOMA é o que garante "nunca reduzir" no próprio banco, não só na tela.
+    /// Soma <paramref name="delta"/> (que pode ser negativo) ao estoque e grava
+    /// a linha de auditoria, atomicamente. O UPDLOCK/HOLDLOCK na leitura é o
+    /// que garante que o saldo lido para decidir seja o mesmo que será gravado.
     ///
     /// logest_vitrine.id não é IDENTITY, então o próximo valor sai de um
     /// MAX(id) sob TABLOCKX dentro da mesma transação — sem isso, dois caixas
     /// salvando junto colidiriam no mesmo id.
     /// </summary>
-    public async Task AdicionarAsync(int codfic, decimal delta, int codusu)
+    /// <summary>
+    /// Aplica um ajuste (positivo ou negativo) ao saldo da vitrine.
+    ///
+    /// Chamava-se AdicionarAsync e recusava delta &lt;= 0, quando a regra era
+    /// "nunca reduzir". A redução passou a ser permitida, então o nome antigo
+    /// deixaria de descrever o que o método faz.
+    ///
+    /// O delta continua sendo RELATIVO, e não um valor absoluto: entre o
+    /// operador ver a tela e salvar, uma venda pode ter baixado o saldo.
+    /// Somar o ajuste preserva essa venda; gravar um número absoluto a
+    /// apagaria sem deixar rastro.
+    /// </summary>
+    public async Task AjustarAsync(int codfic, decimal delta, int codusu)
     {
-        if (delta <= 0) throw new InvalidOperationException("A quantidade adicionada precisa ser maior que zero.");
+        if (delta == 0) return;
 
         await using var conn = await AbrirAsync();
         await using var tx = (SqlTransaction)await conn.BeginTransactionAsync();
@@ -151,6 +167,15 @@ public sealed class Dados(string connectionString)
             }
 
             var atual = anterior + delta;
+
+            // Saldo negativo não existe na vitrine. Acontece quando o operador
+            // digita uma redução e uma venda baixa o estoque antes de ele
+            // salvar. Falhar aqui é melhor que gravar um número que ninguém
+            // pediu: a tela mostra o item que falhou e ele refaz vendo o saldo
+            // já atualizado.
+            if (atual < 0)
+                throw new InvalidOperationException(
+                    $"O saldo mudou para {anterior.ToString("0.##", CultureInfo.InvariantCulture)} enquanto você editava; a redução deixaria negativo.");
 
             await using (var cmdUpd = new SqlCommand(
                 "UPDATE cadest_vitrine SET quantidade = @quantidade WHERE codfic = @codfic", conn, tx))

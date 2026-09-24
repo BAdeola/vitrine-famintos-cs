@@ -354,9 +354,15 @@ public partial class MainWindow : Window
         void Pintar()
         {
             campo.Text = Formatar(p.Total);
-            botaoMenos.IsEnabled = _diaAberto && p.Pendente > 0;
-            rotuloPendente.Text = $"+{Formatar(p.Pendente)} a salvar";
-            rotuloPendente.Visibility = p.Pendente > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+            // Antes o "−" só desfazia o que fora acrescentado nesta sessão.
+            // Agora reduz o saldo de verdade, e o limite é o zero.
+            botaoMenos.IsEnabled = _diaAberto && p.Total > 0;
+
+            rotuloPendente.Text = p.Pendente >= 0
+                ? $"+{Formatar(p.Pendente)} a salvar"
+                : $"−{Formatar(-p.Pendente)} a salvar";
+            rotuloPendente.Visibility = p.Pendente != 0 ? Visibility.Visible : Visibility.Collapsed;
             AtualizarBarraSalvar();
         }
 
@@ -383,18 +389,26 @@ public partial class MainWindow : Window
         campo.LostFocus += (_, _) =>
         {
             var texto = campo.Text.Trim();
+
+            // Texto inválido volta para o que estava na tela, não para o saldo
+            // do banco: quem digitou errado não perde o ajuste que já tinha.
             var alvo = decimal.TryParse(texto, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n)
                 ? n
-                : p.QuantidadeSalva;
-            // A trava: nunca abaixo do que já está salvo no banco.
-            if (alvo < p.QuantidadeSalva)
-                Avisar($"Não dá para reduzir: já há {Formatar(p.QuantidadeSalva)} em estoque.");
-            p.Pendente = Math.Max(p.QuantidadeSalva, alvo) - p.QuantidadeSalva;
+                : p.Total;
+
+            // A única trava que sobrou: saldo negativo não existe na vitrine.
+            if (alvo < 0)
+            {
+                Avisar("A quantidade não pode ficar negativa.");
+                alvo = 0;
+            }
+
+            p.Pendente = alvo - p.QuantidadeSalva;
             Pintar();
         };
 
         botaoMais.Click += (_, _) => { p.Pendente += 1; Pintar(); };
-        botaoMenos.Click += (_, _) => { p.Pendente = Math.Max(0, p.Pendente - 1); Pintar(); };
+        botaoMenos.Click += (_, _) => { p.Pendente = Math.Max(-p.QuantidadeSalva, p.Pendente - 1); Pintar(); };
 
         var controles = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         // Espaçamento por Margin no campo, e não por Borders vazias: são dois
@@ -462,7 +476,7 @@ public partial class MainWindow : Window
 
     private void AtualizarBarraSalvar()
     {
-        var tem = _produtos.Any(p => p.Pendente > 0);
+        var tem = _produtos.Any(p => p.Pendente != 0);
         BarraSalvar.Visibility = tem && _diaAberto ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -482,11 +496,11 @@ public partial class MainWindow : Window
 
         // Cada produto é sua própria transação, igual ao saveChanges do app web —
         // um item que falhar não impede os outros.
-        var pendentes = _produtos.Where(p => p.Pendente > 0).ToList();
+        var pendentes = _produtos.Where(p => p.Pendente != 0).ToList();
         var falhas = new List<string>();
         foreach (var p in pendentes)
         {
-            try { await _dados.AdicionarAsync(p.Codfic, p.Pendente, _operador.Codusu); }
+            try { await _dados.AjustarAsync(p.Codfic, p.Pendente, _operador.Codusu); }
             catch (Exception ex) { falhas.Add($"{p.Nome}: {ex.Message}"); }
         }
 
