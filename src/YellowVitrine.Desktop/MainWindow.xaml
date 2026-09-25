@@ -12,26 +12,25 @@
         <!-- Um produto: foto à esquerda, nome + quantidade à direita. A
              ALTURA é fixa (mantém todas as faixas com a mesma régua); a
              LARGURA vem da UniformGrid da faixa, que divide a linha em partes
-             iguais. Fonte menor que a versão anterior — o pedido era caber
-             nome + campo confortavelmente numa faixa baixa, e larga demais
-             (FontSize 13) forçava truncar ou quebrar em duas linhas. -->
+             iguais. Encolhido para caber 4 por fileira (era 3): foto, respiro
+             e margens todos menores — ver LarguraMinimaDoCard no code-behind. -->
         <DataTemplate x:Key="CardProduto">
-            <Border Height="132" Margin="0,0,12,12" HorizontalAlignment="Stretch"
-                    Background="{StaticResource Superficie}" CornerRadius="16"
+            <Border Height="104" Margin="0,0,12,12" HorizontalAlignment="Stretch"
+                    Background="{StaticResource Superficie}" CornerRadius="14"
                     BorderBrush="#14000000" BorderThickness="1">
-                <Grid Margin="16">
+                <Grid Margin="12,9,12,9">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="100"/>
-                        <ColumnDefinition Width="14"/>
+                        <ColumnDefinition Width="72"/>
+                        <ColumnDefinition Width="10"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <!-- Foto quadrada (as do repositório são 400x400), do
-                         tamanho exato da altura útil do card — não precisa de
-                         moldura maior porque a foto já preenche o quadrado. -->
-                    <Border Grid.Column="0" Background="#0F000000" CornerRadius="12"
-                            Width="100" Height="100">
-                        <Image Source="{Binding Imagem}" Stretch="Uniform" Margin="4"/>
+                    <!-- Foto quadrada (as do repositório são 400x400). Tamanho
+                         fixo e VerticalAlignment=Center — não preenche mais a
+                         altura útil do card (que agora sobra pro texto). -->
+                    <Border Grid.Column="0" Background="#0F000000" CornerRadius="10"
+                            Width="72" Height="72" VerticalAlignment="Center">
+                        <Image Source="{Binding Imagem}" Stretch="Uniform" Margin="3"/>
                     </Border>
 
                     <!-- Nome + campo, empilhados e centralizados na altura do
@@ -39,17 +38,22 @@
                          um nome de uma linha só deixaria o campo mais alto
                          num card do que no vizinho, desalinhando a faixa. -->
                     <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding Nome}" FontSize="12" FontWeight="Bold"
+                        <!-- Height 30, não 28: em 11pt cada linha do WPF
+                             renderiza a ~15px, e 28 arredondava pra baixo do
+                             suficiente pra cortar a segunda linha no meio da
+                             palavra em vez de mostrá-la — ficava pior que o
+                             texto de uma linha só que a altura fixa evita. -->
+                        <TextBlock Text="{Binding Nome}" FontSize="11" FontWeight="Bold"
                                    TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
-                                   Height="32"/>
+                                   Height="30"/>
 
                         <TextBox Style="{StaticResource CampoQuantidade}"
-                                 HorizontalAlignment="Left" Margin="0,6,0,0"
+                                 HorizontalAlignment="Left" Margin="0,4,0,0"
                                  IsEnabled="{Binding Editavel}"
                                  Text="{Binding Total, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0.##}}"/>
 
-                        <TextBlock Text="{Binding TextoPendente}" Margin="0,4,0,0"
-                                   FontSize="10" FontWeight="SemiBold" Height="14"
+                        <TextBlock Text="{Binding TextoPendente}" Margin="0,3,0,0"
+                                   FontSize="9" FontWeight="SemiBold" Height="12"
                                    Foreground="{StaticResource MarcaEscura}"/>
                     </StackPanel>
                 </Grid>
