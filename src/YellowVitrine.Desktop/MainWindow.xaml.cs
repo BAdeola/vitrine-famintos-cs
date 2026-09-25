@@ -36,8 +36,12 @@ public partial class MainWindow : Window
     /// Largura MÍNIMA de um card, mais a margem. Só decide quantos cabem por
     /// linha — a largura real sai da divisão da faixa em partes iguais, então a
     /// sobra vira folga dentro dos cards em vez de buraco à direita.
+    ///
+    /// Subiu de 210 para 288 com o layout lateral: a foto (100) e o respiro
+    /// entre foto e texto (14) não encolhem, e o nome precisa de espaço
+    /// mínimo ao lado deles para não truncar tudo em "…".
     /// </summary>
-    private const double LarguraMinimaDoCard = 210 + 12;
+    private const double LarguraMinimaDoCard = 288 + 12;
 
     /// <summary>
     /// Quantos cards por faixa. É DependencyProperty porque a UniformGrid de
@@ -310,11 +314,11 @@ public partial class MainWindow : Window
             foto.BeginInit();
             foto.CacheOption = BitmapCacheOption.OnLoad;
             foto.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
-            // A foto renderiza a ~156px; 240 dá folga para a máquina do caixa
-            // estar em 125% ou 150% de escala, onde 156 viram 234 pixels reais
-            // e um decode menor apareceria borrado. Acima disso só gastaria
-            // memória: são ~130 fotos vivas ao mesmo tempo.
-            foto.DecodePixelWidth = 240;
+            // A foto renderiza a 100px; 160 dá folga para a máquina do caixa
+            // estar em 125% ou 150% de escala, onde 100 viram até 150 pixels
+            // reais e um decode menor apareceria borrado. Acima disso só
+            // gastaria memória: são ~130 fotos vivas ao mesmo tempo.
+            foto.DecodePixelWidth = 160;
             foto.UriSource = new Uri(caminho);
             foto.EndInit();
             foto.Freeze();

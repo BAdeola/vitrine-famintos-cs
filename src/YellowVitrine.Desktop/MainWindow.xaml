@@ -9,48 +9,49 @@
 
     <Window.Resources>
 
-        <!-- Um produto. A ALTURA é fixa (é ela que permite virtualizar); a
+        <!-- Um produto: foto à esquerda, nome + quantidade à direita. A
+             ALTURA é fixa (mantém todas as faixas com a mesma régua); a
              LARGURA vem da UniformGrid da faixa, que divide a linha em partes
-             iguais. Card de largura fixa deixava sobra à direita — quase meio
-             card de espaço morto — e a grade não fechava com o título. -->
+             iguais. Fonte menor que a versão anterior — o pedido era caber
+             nome + campo confortavelmente numa faixa baixa, e larga demais
+             (FontSize 13) forçava truncar ou quebrar em duas linhas. -->
         <DataTemplate x:Key="CardProduto">
-            <Border Height="290" Margin="0,0,12,12" HorizontalAlignment="Stretch"
+            <Border Height="132" Margin="0,0,12,12" HorizontalAlignment="Stretch"
                     Background="{StaticResource Superficie}" CornerRadius="16"
                     BorderBrush="#14000000" BorderThickness="1">
-                <Grid Margin="12">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="160"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
+                <Grid Margin="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="100"/>
+                        <ColumnDefinition Width="14"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
 
-                    <!-- As fotos do repositório são quadradas (400x400), então
-                         com Uniform quem manda no tamanho é a ALTURA desta
-                         linha, não a largura do card: a 104 a foto saía com
-                         92px e sobrava meia moldura vazia dos dois lados. -->
-                    <Border Grid.Row="0" Background="#0F000000" CornerRadius="10"
-                            Width="160" HorizontalAlignment="Center">
-                        <Image Source="{Binding Imagem}" Stretch="Uniform" Margin="2"/>
+                    <!-- Foto quadrada (as do repositório são 400x400), do
+                         tamanho exato da altura útil do card — não precisa de
+                         moldura maior porque a foto já preenche o quadrado. -->
+                    <Border Grid.Column="0" Background="#0F000000" CornerRadius="12"
+                            Width="100" Height="100">
+                        <Image Source="{Binding Imagem}" Stretch="Uniform" Margin="4"/>
                     </Border>
 
-                    <!-- Altura fixa de duas linhas: sem ela, um nome que quebra
-                         em duas linhas empurraria o campo de quantidade para
-                         baixo só naquele card, desalinhando a faixa inteira. -->
-                    <TextBlock Grid.Row="1" Text="{Binding Nome}" Margin="0,8,0,0"
-                               FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap"
-                               TextTrimming="CharacterEllipsis" Height="36"
-                               TextAlignment="Center"/>
+                    <!-- Nome + campo, empilhados e centralizados na altura do
+                         card. Nome com altura fixa de duas linhas: sem isso,
+                         um nome de uma linha só deixaria o campo mais alto
+                         num card do que no vizinho, desalinhando a faixa. -->
+                    <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Nome}" FontSize="12" FontWeight="Bold"
+                                   TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
+                                   Height="32"/>
 
-                    <TextBox Grid.Row="2" Style="{StaticResource CampoQuantidade}"
-                             Margin="0,6,0,0"
-                             IsEnabled="{Binding Editavel}"
-                             Text="{Binding Total, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0.##}}"/>
+                        <TextBox Style="{StaticResource CampoQuantidade}"
+                                 HorizontalAlignment="Left" Margin="0,6,0,0"
+                                 IsEnabled="{Binding Editavel}"
+                                 Text="{Binding Total, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0.##}}"/>
 
-                    <TextBlock Grid.Row="3" Text="{Binding TextoPendente}" Margin="0,4,0,0"
-                               FontSize="11" FontWeight="SemiBold" Height="14"
-                               Foreground="{StaticResource MarcaEscura}"
-                               HorizontalAlignment="Center"/>
+                        <TextBlock Text="{Binding TextoPendente}" Margin="0,4,0,0"
+                                   FontSize="10" FontWeight="SemiBold" Height="14"
+                                   Foreground="{StaticResource MarcaEscura}"/>
+                    </StackPanel>
                 </Grid>
             </Border>
         </DataTemplate>
