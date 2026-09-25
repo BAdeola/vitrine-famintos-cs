@@ -32,10 +32,27 @@ public partial class MainWindow : Window
     /// </summary>
     private readonly List<List<ProdutoVitrine>> _faixas = [];
 
-    /// <summary>Largura do card mais a margem, como está no DataTemplate.</summary>
-    private const double LarguraDoCard = 210 + 12;
+    /// <summary>
+    /// Largura MÍNIMA de um card, mais a margem. Só decide quantos cabem por
+    /// linha — a largura real sai da divisão da faixa em partes iguais, então a
+    /// sobra vira folga dentro dos cards em vez de buraco à direita.
+    /// </summary>
+    private const double LarguraMinimaDoCard = 210 + 12;
 
-    private int _colunas;
+    /// <summary>
+    /// Quantos cards por faixa. É DependencyProperty porque a UniformGrid de
+    /// cada faixa se liga a ela pelo XAML: um campo comum não avisaria a grade
+    /// quando a janela mudasse de tamanho.
+    /// </summary>
+    public int Colunas
+    {
+        get => (int)GetValue(ColunasProperty);
+        private set => SetValue(ColunasProperty, value);
+    }
+
+    public static readonly DependencyProperty ColunasProperty =
+        DependencyProperty.Register(nameof(Colunas), typeof(int), typeof(MainWindow),
+            new PropertyMetadata(1));
 
     public MainWindow()
     {
@@ -293,7 +310,11 @@ public partial class MainWindow : Window
             foto.BeginInit();
             foto.CacheOption = BitmapCacheOption.OnLoad;
             foto.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
-            foto.DecodePixelWidth = 200;
+            // A foto renderiza a ~156px; 240 dá folga para a máquina do caixa
+            // estar em 125% ou 150% de escala, onde 156 viram 234 pixels reais
+            // e um decode menor apareceria borrado. Acima disso só gastaria
+            // memória: são ~130 fotos vivas ao mesmo tempo.
+            foto.DecodePixelWidth = 240;
             foto.UriSource = new Uri(caminho);
             foto.EndInit();
             foto.Freeze();
@@ -327,7 +348,7 @@ public partial class MainWindow : Window
         // Desconta a barra de rolagem: sem isso o último card de cada faixa
         // fica meio escondido quando a lista passa a rolar.
         var largura = ListaCards.ActualWidth - 16;
-        return largura <= 0 ? 1 : Math.Max(1, (int)(largura / LarguraDoCard));
+        return largura <= 0 ? 1 : Math.Max(1, (int)(largura / LarguraMinimaDoCard));
     }
 
     private void MontarFaixas(bool forcar = false)
@@ -337,8 +358,8 @@ public partial class MainWindow : Window
         // Só reorganiza quando a quantidade por linha muda de fato. Arrastar a
         // borda da janela dispara SizeChanged a cada pixel, e remontar a lista
         // em cada um deles engasga a máquina do caixa.
-        if (!forcar && colunas == _colunas) return;
-        _colunas = colunas;
+        if (!forcar && colunas == Colunas) return;
+        Colunas = colunas;
 
         _faixas.Clear();
         for (var i = 0; i < _produtos.Count; i += colunas)

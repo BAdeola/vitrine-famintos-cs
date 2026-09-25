@@ -1,6 +1,7 @@
 <Window x:Class="YellowVitrine.Desktop.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:primitivos="clr-namespace:System.Windows.Controls.Primitives;assembly=PresentationFramework"
         Title="Yellow Vitrine"
         WindowState="Maximized" WindowStyle="None" ResizeMode="CanResize"
         Background="{StaticResource Canvas}"
@@ -8,34 +9,41 @@
 
     <Window.Resources>
 
-        <!-- Um produto. Tamanho fixo: é o que permite calcular quantos cabem
-             por linha e, com isso, virtualizar a lista. -->
+        <!-- Um produto. A ALTURA é fixa (é ela que permite virtualizar); a
+             LARGURA vem da UniformGrid da faixa, que divide a linha em partes
+             iguais. Card de largura fixa deixava sobra à direita — quase meio
+             card de espaço morto — e a grade não fechava com o título. -->
         <DataTemplate x:Key="CardProduto">
-            <Border Width="210" Height="238" Margin="0,0,12,12"
+            <Border Height="290" Margin="0,0,12,12" HorizontalAlignment="Stretch"
                     Background="{StaticResource Superficie}" CornerRadius="16"
                     BorderBrush="#14000000" BorderThickness="1">
                 <Grid Margin="12">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="104"/>
-                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="160"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <!-- Moldura da foto. A imagem em si entra quando o programa
-                         que baixa as fotos do FAMICD existir; até lá fica o
-                         espaço reservado, para o card não mudar de tamanho
-                         depois e reorganizar a tela inteira. -->
-                    <Border Grid.Row="0" Background="#0F000000" CornerRadius="10">
-                        <Image Source="{Binding Imagem}" Stretch="Uniform" Margin="6"/>
+                    <!-- As fotos do repositório são quadradas (400x400), então
+                         com Uniform quem manda no tamanho é a ALTURA desta
+                         linha, não a largura do card: a 104 a foto saía com
+                         92px e sobrava meia moldura vazia dos dois lados. -->
+                    <Border Grid.Row="0" Background="#0F000000" CornerRadius="10"
+                            Width="160" HorizontalAlignment="Center">
+                        <Image Source="{Binding Imagem}" Stretch="Uniform" Margin="2"/>
                     </Border>
 
+                    <!-- Altura fixa de duas linhas: sem ela, um nome que quebra
+                         em duas linhas empurraria o campo de quantidade para
+                         baixo só naquele card, desalinhando a faixa inteira. -->
                     <TextBlock Grid.Row="1" Text="{Binding Nome}" Margin="0,8,0,0"
                                FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap"
-                               TextTrimming="CharacterEllipsis" MaxHeight="34"/>
+                               TextTrimming="CharacterEllipsis" Height="36"
+                               TextAlignment="Center"/>
 
                     <TextBox Grid.Row="2" Style="{StaticResource CampoQuantidade}"
-                             HorizontalAlignment="Stretch" Margin="0,6,0,0"
+                             Margin="0,6,0,0"
                              IsEnabled="{Binding Editavel}"
                              Text="{Binding Total, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0.##}}"/>
 
@@ -54,7 +62,12 @@
             <ItemsControl ItemsSource="{Binding}" ItemTemplate="{StaticResource CardProduto}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                        <StackPanel Orientation="Horizontal"/>
+                        <!-- Columns vem da janela, NÃO da quantidade de itens da
+                             faixa: a última linha quase nunca está cheia, e sem
+                             isso os cards dela ficariam esticados, mais largos
+                             que os de cima. -->
+                        <primitivos:UniformGrid Rows="1"
+                            Columns="{Binding Colunas, RelativeSource={RelativeSource AncestorType=Window}}"/>
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
             </ItemsControl>
