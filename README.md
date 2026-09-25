@@ -79,6 +79,36 @@ Nada de tarjas permanentes. O que era faixa passou para o próprio título:
 A faixa de **erro** continua, porque não é texto fixo: só aparece quando uma
 gravação falha, e é a única forma de saber que algo não passou.
 
+### As fotos vêm do mesmo repositório do totem
+
+O `ImagensDaVitrine` fala com a mesma VPS que abastece o totem, pelo mesmo
+protocolo: `/manifest` lista os arquivos com tamanho e data,
+`/files/products/<arquivo>` baixa um. Inventar um caminho próprio seria manter
+dois contratos contra o mesmo servidor.
+
+A diferença para o totem é o recorte: aqui só se baixa a foto dos produtos que
+estão na vitrine, não o catálogo inteiro. O nome do arquivo sai do
+`fictec.caminho_imagem` — só o nome, porque o caminho gravado é o da máquina
+onde a imagem foi cadastrada e não existe no caixa.
+
+Um arquivo é rebaixado quando não existe, quando o tamanho não bate ou quando o
+remoto é mais novo. O disco é a fonte da verdade, sem estado próprio. O download
+vai para um `.tmp` e só então troca de nome: uma queda no meio deixaria um
+arquivo pela metade com o nome final, e ele passaria na checagem de "já existe"
+para sempre.
+
+As fotos ficam em `%LOCALAPPDATA%\YellowVitrine\imagens`, **fora da pasta do
+programa** — atualizar com `robocopy` por cima não apaga o que já foi baixado.
+
+Nada disso bloqueia a tela: o operador precisa lançar quantidade, e a foto é
+ajuda visual. Com o repositório fora do ar, valem as fotos que já estão em disco.
+
+⚠️ **Confira a `UrlDasImagens`.** O servidor antigo
+(`totem-imagens.orangesystems.cloud`) continua respondendo 200, congelado desde
+09/09/2026 e com as imagens **sem otimizar**: o mesmo `1000.png` tem 25 KB no
+ativo e 2,8 MB nele. Apontar errado não gera erro — só enche o caixa de imagem
+velha e pesada.
+
 ## Lançar pelo teclado
 
 No campo de quantidade, **Enter salta para o item de baixo**, já com o texto

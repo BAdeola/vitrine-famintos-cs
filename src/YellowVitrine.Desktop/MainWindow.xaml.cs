@@ -3,11 +3,13 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 
 namespace YellowVitrine.Desktop;
@@ -76,7 +78,12 @@ public partial class MainWindow : Window
     /// Node de propósito: as duas versões convivem, e reconfigurar uma não pode
     /// quebrar a outra.
     /// </summary>
-    private sealed record Configuracao(string ConnectionString, bool ModoHomologacao, decimal QuantidadeDeHomologacao);
+    private sealed record Configuracao(
+        string ConnectionString,
+        bool ModoHomologacao,
+        decimal QuantidadeDeHomologacao,
+        string UrlDasImagens,
+        string PastaDasImagens);
 
     private static Configuracao LerConfiguracao()
     {
@@ -103,7 +110,25 @@ public partial class MainWindow : Window
                 ? valor
                 : 100m;
 
-        return new Configuracao(cs.GetString()!, modo, quantidade);
+        // O default aponta para o domínio ATIVO. O endereço antigo
+        // (orangesystems.cloud) ainda aparece em código velho e falha em
+        // silêncio: responde erro de DNS e as fotos simplesmente não aparecem.
+        var urlImagens = raiz.TryGetProperty("UrlDasImagens", out var u) && u.ValueKind == JsonValueKind.String
+            && !string.IsNullOrWhiteSpace(u.GetString())
+                ? u.GetString()!
+                : "https://totem-imagens.cafefamintos.com.br";
+
+        // Fora da pasta do programa: assim uma atualização (robocopy por cima)
+        // não apaga as fotos já baixadas, e a pasta é gravável mesmo se
+        // alguém instalar em Arquivos de Programas.
+        var pastaImagens = raiz.TryGetProperty("PastaDasImagens", out var pa) && pa.ValueKind == JsonValueKind.String
+            && !string.IsNullOrWhiteSpace(pa.GetString())
+                ? Environment.ExpandEnvironmentVariables(pa.GetString()!)
+                : Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "YellowVitrine", "imagens");
+
+        return new Configuracao(cs.GetString()!, modo, quantidade, urlImagens, pastaImagens);
     }
 
     private async Task CarregarAsync()
@@ -175,6 +200,111 @@ public partial class MainWindow : Window
         PainelEstado.Visibility = Visibility.Collapsed;
         MontarFaixas(forcar: true);
         AtualizarBarraSalvar();
+
+        // Sem await: a tela já está utilizável, e a foto é ajuda visual. O
+        // operador não deve esperar rede para lançar quantidade.
+        _ = CarregarImagensAsync(config);
+    }
+
+    // ---------------------------------------------------------------- fotos
+
+    private CancellationTokenSource? _cancelaImagens;
+
+    /// <summary>
+    /// Põe as fotos nos cards: primeiro as que já estão em disco, depois as que
+    /// vierem do repositório central.
+    ///
+    /// A ordem importa. Reabrir a tela não pode esperar a rede — o que já foi
+    /// baixado aparece na hora, e o download só preenche o que falta. Com o
+    /// repositório fora do ar, os cards ficam com as fotos que já tinham.
+    /// </summary>
+    private async Task CarregarImagensAsync(Configuracao config)
+    {
+        // Cada recarga cancela a anterior: a janela some e volta com
+        // frequência, e dois downloads concorrentes escreveriam na mesma pasta.
+        _cancelaImagens?.Cancel();
+        _cancelaImagens = new CancellationTokenSource();
+        var ct = _cancelaImagens.Token;
+
+        // Por arquivo, não por produto: produtos diferentes podem apontar para
+        // a mesma foto, e baixar duas vezes seria desperdício.
+        var porArquivo = _produtos
+            .Where(p => p.ArquivoImagem.Length > 0)
+            .GroupBy(p => p.ArquivoImagem, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+
+        if (porArquivo.Count == 0) return;
+
+        var jaAplicados = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void Aplicar(string arquivo, string caminho)
+        {
+            lock (jaAplicados) { if (!jaAplicados.Add(arquivo)) return; }
+
+            // Decodifica na thread de fundo e congela: fazer isso na thread da
+            // interface trava a tela, e é justo o que essa máquina não aguenta.
+            var foto = CarregarFoto(caminho);
+            if (foto is null) return;
+
+            Dispatcher.Invoke(() =>
+            {
+                if (!porArquivo.TryGetValue(arquivo, out var produtos)) return;
+                foreach (var produto in produtos) produto.Imagem = foto;
+            });
+        }
+
+        var imagens = new ImagensDaVitrine(config.UrlDasImagens, config.PastaDasImagens);
+
+        try
+        {
+            await Task.Run(() =>
+            {
+                foreach (var arquivo in porArquivo.Keys)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var caminho = imagens.CaminhoSeExistir(arquivo);
+                    if (caminho is not null) Aplicar(arquivo, caminho);
+                }
+            }, ct);
+
+            var resultado = await imagens.SincronizarAsync([.. porArquivo.Keys], Aplicar, ct);
+
+            if (resultado.Erro is not null)
+                TextoEstado.Text = $"Fotos: {resultado.Erro}";
+        }
+        catch (OperationCanceledException)
+        {
+            // Recarga nova assumiu; nada a fazer.
+        }
+    }
+
+    /// <summary>
+    /// Lê o arquivo e devolve a imagem pronta para uso em qualquer thread.
+    ///
+    /// OnLoad fecha o arquivo na hora — sem isso o WPF segura o handle e o
+    /// próximo download não conseguiria substituir a foto. O DecodePixelWidth
+    /// evita guardar em memória uma imagem muito maior que o card.
+    /// </summary>
+    private static BitmapImage? CarregarFoto(string caminho)
+    {
+        try
+        {
+            var foto = new BitmapImage();
+            foto.BeginInit();
+            foto.CacheOption = BitmapCacheOption.OnLoad;
+            foto.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
+            foto.DecodePixelWidth = 200;
+            foto.UriSource = new Uri(caminho);
+            foto.EndInit();
+            foto.Freeze();
+            return foto;
+        }
+        catch
+        {
+            // Arquivo corrompido ou formato que o WPF não abre: o card fica sem
+            // foto, que é melhor que derrubar a tela inteira.
+            return null;
+        }
     }
 
     /// <summary>

@@ -15,13 +15,24 @@ namespace YellowVitrine.Desktop;
 /// criados e RECICLADOS conforme a rolagem. Sem INotifyPropertyChanged, um
 /// card reaproveitado mostraria o número do produto anterior.
 /// </summary>
-public sealed class ProdutoVitrine(int codfic, string nome, decimal quantidadeSalva, string categoria)
+public sealed class ProdutoVitrine(int codfic, string nome, decimal quantidadeSalva, string categoria, string caminhoImagem = "")
     : INotifyPropertyChanged
 {
     public int Codfic { get; } = codfic;
     public string Nome { get; } = nome;
     public decimal QuantidadeSalva { get; } = quantidadeSalva;
     public string Categoria { get; } = categoria;
+
+    /// <summary>
+    /// Só o NOME do arquivo da foto. O banco guarda o caminho completo da
+    /// máquina onde a imagem foi cadastrada, que não existe no caixa — o que
+    /// vale é o nome, igual ao do repositório central. Mesma conversão do totem.
+    /// </summary>
+    public string ArquivoImagem { get; } = string.IsNullOrWhiteSpace(caminhoImagem)
+        ? ""
+        : caminhoImagem.TrimEnd().Split(SeparadoresDeCaminho)[^1];
+
+    private static readonly char[] SeparadoresDeCaminho = ['\\', '/'];
 
     private decimal _pendente;
 
@@ -65,11 +76,18 @@ public sealed class ProdutoVitrine(int codfic, string nome, decimal quantidadeSa
     /// <summary>Dia fechado desabilita o campo — não há turno para registrar quem mexeu.</summary>
     public bool Editavel { get; set; }
 
+    private ImageSource? _imagem;
+
     /// <summary>
-    /// Foto do produto. Fica nula até existir o programa que baixa as imagens
-    /// do FAMICD; o card já reserva o espaço para não mudar de tamanho depois.
+    /// Foto do produto. Chega DEPOIS de a tela montar, quando o download
+    /// termina, então precisa notificar — o card já está na frente do operador
+    /// quando a imagem aparece.
     /// </summary>
-    public ImageSource? Imagem { get; set; }
+    public ImageSource? Imagem
+    {
+        get => _imagem;
+        set { _imagem = value; Avisar(nameof(Imagem)); }
+    }
 
     private static string Texto(decimal v) =>
         v == Math.Floor(v)
@@ -152,7 +170,8 @@ public sealed class Dados(string connectionString)
     {
         const string sql = """
             SELECT c.codfic, RTRIM(f.nomfic) AS nome, c.quantidade,
-                   RTRIM(ISNULL(g.nomgru, 'SEM CATEGORIA')) AS categoria
+                   RTRIM(ISNULL(g.nomgru, 'SEM CATEGORIA')) AS categoria,
+                   RTRIM(ISNULL(f.caminho_imagem, '')) AS caminho_imagem
             FROM cadest_vitrine c
             JOIN fictec f ON f.codfic = c.codfic
             LEFT JOIN grufic g ON g.codgru = f.codgru
@@ -169,7 +188,8 @@ public sealed class Dados(string connectionString)
                 Int(r.GetValue(0)),
                 Txt(r.GetValue(1)),
                 Dec(r.GetValue(2)),
-                Txt(r.GetValue(3))));
+                Txt(r.GetValue(3)),
+                Txt(r.GetValue(4))));
         }
         return lista;
     }
