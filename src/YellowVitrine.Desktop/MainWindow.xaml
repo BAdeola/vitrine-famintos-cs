@@ -18,18 +18,19 @@
             <Border Height="104" Margin="0,0,12,12" HorizontalAlignment="Stretch"
                     Background="{StaticResource Superficie}" CornerRadius="14"
                     BorderBrush="#14000000" BorderThickness="1">
-                <Grid Margin="12,9,12,9">
+                <Grid Margin="12,7,12,7">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="72"/>
+                        <ColumnDefinition Width="86"/>
                         <ColumnDefinition Width="10"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
                     <!-- Foto quadrada (as do repositório são 400x400). Tamanho
-                         fixo e VerticalAlignment=Center — não preenche mais a
-                         altura útil do card (que agora sobra pro texto). -->
+                         fixo e VerticalAlignment=Center — quase do tamanho da
+                         altura útil do card (86 de 90), só a margem que sobra
+                         pro texto ao lado, mais estreita do que era. -->
                     <Border Grid.Column="0" Background="#0F000000" CornerRadius="10"
-                            Width="72" Height="72" VerticalAlignment="Center">
+                            Width="86" Height="86" VerticalAlignment="Center">
                         <Image Source="{Binding Imagem}" Stretch="Uniform" Margin="3"/>
                     </Border>
 
