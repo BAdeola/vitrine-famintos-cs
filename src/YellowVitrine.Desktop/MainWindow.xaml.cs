@@ -420,9 +420,16 @@ public partial class MainWindow : Window
         var i = _produtos.IndexOf(atual);
         if (i < 0 || i + 1 >= _produtos.Count)
         {
-            // Último da lista: fica onde está. Voltar ao começo faria o
-            // operador perder o lugar sem perceber.
-            campo.SelectAll();
+            // Último da lista. Com alteração pendente pra salvar, Enter pula
+            // pro botão — outro Enter ali já confirma (é o comportamento
+            // padrão de Button focado no WPF, não precisa de código a mais).
+            // Sem nada pendente não há pra onde pular: fica selecionado, como
+            // antes. Voltar ao começo faria o operador perder o lugar sem
+            // perceber.
+            if (BarraSalvar.Visibility == Visibility.Visible && BotaoSalvarTudo.IsEnabled)
+                BotaoSalvarTudo.Focus();
+            else
+                campo.SelectAll();
             return;
         }
 
