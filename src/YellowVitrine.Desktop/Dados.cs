@@ -46,6 +46,12 @@ public sealed class ProdutoVitrine(int codfic, string nome, decimal quantidadeSa
         get => _pendente;
         set
         {
+            // Piso do zero: o campo editado agora é este (o "somar"), então a
+            // trava do total não-negativo mora aqui. Somar −5 sobre um saldo de
+            // 3 vira −3 (zera), nunca deixa o final negativo.
+            var piso = -QuantidadeSalva;
+            if (value < piso) value = piso;
+
             if (_pendente == value) return;
             _pendente = value;
             Avisar(nameof(Pendente));
@@ -168,8 +174,14 @@ public sealed class Dados(string connectionString)
     /// </summary>
     public async Task<List<ProdutoVitrine>> ListarAsync()
     {
+        // Nome mostrado é o nomfic_totem (o mesmo que o totem exibe), não o
+        // nomfic interno. Cai pro nomfic quando o nomfic_totem está vazio/nulo:
+        // nem todo item de vitrine tem o nome de totem preenchido, e card em
+        // branco seria pior que mostrar o nome interno.
         const string sql = """
-            SELECT c.codfic, RTRIM(f.nomfic) AS nome, c.quantidade,
+            SELECT c.codfic,
+                   RTRIM(ISNULL(NULLIF(RTRIM(f.nomfic_totem), ''), f.nomfic)) AS nome,
+                   c.quantidade,
                    RTRIM(ISNULL(g.nomgru, 'SEM CATEGORIA')) AS categoria,
                    RTRIM(ISNULL(f.caminho_imagem, '')) AS caminho_imagem
             FROM cadest_vitrine c

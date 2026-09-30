@@ -387,7 +387,24 @@ public partial class MainWindow : Window
 
     private static void AoDigitar(object sender, TextCompositionEventArgs e)
     {
-        if (e.OriginalSource is TextBox && !e.Text.All(char.IsDigit)) e.Handled = true;
+        if (e.OriginalSource is not TextBox campo) return;
+
+        // Dígitos sempre; o "−" só como primeiro caractere e um só. O campo
+        // agora é o "somar", que aceita negativo (redução) — sem isto o operador
+        // não teria como digitar a redução que a regra permite. Com o texto todo
+        // selecionado (foco acabou de chegar) o "−" também vale, pois substitui.
+        foreach (var ch in e.Text)
+        {
+            if (char.IsDigit(ch)) continue;
+
+            var tudoSelecionado = campo.SelectionLength == campo.Text.Length;
+            var menosValido = ch == '-' && campo.SelectionStart == 0
+                              && (tudoSelecionado || !campo.Text.Contains('-'));
+            if (menosValido) continue;
+
+            e.Handled = true;
+            return;
+        }
     }
 
     // Seleciona tudo ao focar: tocar no campo e digitar substitui, em vez de

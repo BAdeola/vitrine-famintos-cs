@@ -34,28 +34,54 @@
                         <Image Source="{Binding Imagem}" Stretch="Uniform" Margin="3"/>
                     </Border>
 
-                    <!-- Nome + campo, empilhados e centralizados na altura do
-                         card. Nome com altura fixa de duas linhas: sem isso,
-                         um nome de uma linha só deixaria o campo mais alto
+                    <!-- Nome + a conta "tinha + somar = fica", empilhados e
+                         centralizados. Nome com altura fixa de duas linhas: sem
+                         isso, um nome de uma linha só deixaria a conta mais alta
                          num card do que no vizinho, desalinhando a faixa. -->
                     <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                        <!-- Height 30, não 28: em 11pt cada linha do WPF
-                             renderiza a ~15px, e 28 arredondava pra baixo do
-                             suficiente pra cortar a segunda linha no meio da
-                             palavra em vez de mostrá-la — ficava pior que o
-                             texto de uma linha só que a altura fixa evita. -->
                         <TextBlock Text="{Binding Nome}" FontSize="11" FontWeight="Bold"
                                    TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
                                    Height="30"/>
 
-                        <TextBox Style="{StaticResource CampoQuantidade}"
-                                 HorizontalAlignment="Left" Margin="0,4,0,0"
-                                 IsEnabled="{Binding Editavel}"
-                                 Text="{Binding Total, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0.##}}"/>
+                        <!-- tinha (salvo, só leitura) + somar (editável) = fica
+                             (total, só leitura). Só o "somar" é TextBox — os
+                             outros dois são texto, e é o que garante que a
+                             navegação por foco/Enter caia sempre no campo certo. -->
+                        <Grid Margin="0,6,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
 
-                        <TextBlock Text="{Binding TextoPendente}" Margin="0,3,0,0"
-                                   FontSize="9" FontWeight="SemiBold" Height="12"
-                                   Foreground="{StaticResource MarcaEscura}"/>
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                <TextBlock Text="tinha" FontSize="8" HorizontalAlignment="Center"
+                                           Foreground="{StaticResource TintaFraca}"/>
+                                <TextBlock Text="{Binding QuantidadeSalva, StringFormat={}{0:0.##}}"
+                                           FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                            </StackPanel>
+
+                            <TextBlock Grid.Column="1" Text="+" FontSize="13" Margin="6,0,6,0"
+                                       VerticalAlignment="Center" Foreground="{StaticResource TintaFraca}"/>
+
+                            <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                <TextBlock Text="somar" FontSize="8" HorizontalAlignment="Center"
+                                           Foreground="{StaticResource MarcaEscura}"/>
+                                <TextBox Style="{StaticResource CampoQuantidade}" Width="52" Height="30" FontSize="13"
+                                         IsEnabled="{Binding Editavel}"
+                                         Text="{Binding Pendente, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0.##}}"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="3" VerticalAlignment="Center" Margin="8,0,0,0">
+                                <TextBlock Text="fica" FontSize="8" HorizontalAlignment="Center"
+                                           Foreground="{StaticResource TintaFraca}"/>
+                                <TextBlock Text="{Binding Total, StringFormat={}{0:0.##}}"
+                                           FontSize="13" FontWeight="Bold" HorizontalAlignment="Center"
+                                           Foreground="{StaticResource MarcaEscura}"/>
+                            </StackPanel>
+                        </Grid>
                     </StackPanel>
                 </Grid>
             </Border>
