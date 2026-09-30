@@ -55,9 +55,9 @@
                         <Grid Margin="0,6,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
@@ -65,37 +65,40 @@
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
-                            <!-- Linha 0: rótulos, todos na mesma horizontal.
-                                 TextWrapping deixa "Estoque Atual" e "Estoque final"
-                                 quebrarem no espaço em vez de alargar a coluna — as
-                                 laterais são proporcionais, então alargar uma
-                                 espremeria a outra e desalinharia a faixa.
-                                 "Abastecendo" é palavra única: não tem onde quebrar,
-                                 e a coluna dele é Auto (colada na caixa de 44px).
-                                 Se ficar apertado, o ajuste é reduzir Colunas na
-                                 janela (menos cards por faixa, cada um mais largo). -->
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Estoque Atual" FontSize="8"
+                            <!-- Linha 0: rótulos, todos na mesma horizontal. Os de
+                                 estoque quebram em duas linhas (TextWrapping) em vez
+                                 de alargar a coluna. Só a caixa "Abastecendo" (col 2)
+                                 tem largura Auto; as outras quatro colunas são
+                                 proporcionais — e é isso que centra o "+" e o "="
+                                 no vão, cada um sozinho na sua coluna, sem colar na
+                                 caixa. -->
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Estoque Atual" FontSize="10"
                                        TextWrapping="Wrap" TextAlignment="Center"
                                        HorizontalAlignment="Center" Foreground="{StaticResource TintaFraca}"/>
-                            <TextBlock Grid.Row="0" Grid.Column="2" Text="Abastecendo" FontSize="8"
-                                       TextWrapping="Wrap" TextAlignment="Center"
+                            <TextBlock Grid.Row="0" Grid.Column="2" Text="Abastecendo" FontSize="10"
+                                       TextAlignment="Center"
                                        HorizontalAlignment="Center" Foreground="{StaticResource MarcaEscura}"/>
-                            <TextBlock Grid.Row="0" Grid.Column="4" Text="Estoque final" FontSize="8"
+                            <TextBlock Grid.Row="0" Grid.Column="4" Text="Estoque final" FontSize="10"
                                        TextWrapping="Wrap" TextAlignment="Center"
                                        HorizontalAlignment="Center" Foreground="{StaticResource TintaFraca}"/>
 
-                            <!-- Linha 1: valores, centralizados na mesma horizontal -->
+                            <!-- Linha 1: valores, centralizados na mesma horizontal.
+                                 O "+" e o "=" ficam CENTRADOS nas colunas 1 e 3
+                                 (proporcionais), no meio do vão entre os campos. -->
                             <TextBlock Grid.Row="1" Grid.Column="0" FontSize="13" FontWeight="SemiBold"
                                        HorizontalAlignment="Center" VerticalAlignment="Center"
                                        Text="{Binding QuantidadeSalva, StringFormat={}{0:0.##}}"/>
-                            <TextBlock Grid.Row="1" Grid.Column="1" Text="+" FontSize="12" Margin="2,0,2,0"
-                                       VerticalAlignment="Center" Foreground="{StaticResource TintaFraca}"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="+" FontSize="13"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TintaFraca}"/>
                             <TextBox Grid.Row="1" Grid.Column="2" Style="{StaticResource CampoQuantidade}"
-                                     Width="44" Height="30" FontSize="13" VerticalAlignment="Center"
+                                     Width="44" Height="30" FontSize="13"
+                                     HorizontalAlignment="Center" VerticalAlignment="Center"
                                      IsEnabled="{Binding Editavel}"
                                      Text="{Binding Pendente, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0.##}}"/>
-                            <TextBlock Grid.Row="1" Grid.Column="3" Text="=" FontSize="12" Margin="2,0,2,0"
-                                       VerticalAlignment="Center" Foreground="{StaticResource TintaFraca}"/>
+                            <TextBlock Grid.Row="1" Grid.Column="3" Text="=" FontSize="13"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TintaFraca}"/>
                             <TextBlock Grid.Row="1" Grid.Column="4" FontSize="13" FontWeight="Bold"
                                        HorizontalAlignment="Center" VerticalAlignment="Center"
                                        Foreground="{StaticResource MarcaEscura}"

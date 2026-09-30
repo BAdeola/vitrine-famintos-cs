@@ -49,10 +49,14 @@ public partial class MainWindow : Window
     /// é Poppins, mais larga que o Segoe UI usado pra medir, então na máquina
     /// do caixa estouraria.
     ///
-    /// 236+12 = 248 é o TETO que ainda dá 4 colunas em 1024px: (1024-16)/4 = 252.
-    /// Passar disso derruba pra 3 colunas nessa resolução.
+    /// SUBIU de novo, de 236 para 300, quando os rótulos cresceram (fonte 10) e
+    /// o "+"/"=" saíram de colados na caixa para CENTRADOS no vão entre os
+    /// campos: cada operador passou a ter a sua própria coluna proporcional, e
+    /// isso só respira com card mais largo. É a troca que o Ricardo já tinha
+    /// autorizado ("aumenta o card e deixa menos por fileira"): 300+12=312 dá
+    /// ~4 colunas em 1366px e ~3 em 1024px.
     /// </summary>
-    private const double LarguraMinimaDoCard = 236 + 12;
+    private const double LarguraMinimaDoCard = 300 + 12;
 
     /// <summary>
     /// Quantos cards por faixa. É DependencyProperty porque a UniformGrid de
