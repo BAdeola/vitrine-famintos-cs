@@ -43,49 +43,52 @@
                                    TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
                                    Height="30"/>
 
-                        <!-- tinha (salvo, só leitura) + somar (editável) = fica
-                             (total, só leitura). Só o "somar" é TextBox — os
-                             outros dois são texto, e é o que garante que a
-                             navegação por foco/Enter caia sempre no campo certo.
+                        <!-- Duas linhas fixas: os rótulos (tinha/somar/final)
+                             numa horizontal, os valores (texto, caixa, texto) na
+                             de baixo — assim tudo alinha, em vez de pilhas de
+                             alturas diferentes que desencontravam os textos.
 
-                             Colunas PROPORCIONAIS: "tinha" e "fica" são as duas
-                             estrelas, dividem o que sobra em partes iguais e
-                             encolhem junto — assim o "fica" nunca transborda pra
-                             fora do card (era o corte da imagem). Só o "somar"
-                             (a caixa) e o "+" têm largura fixa. -->
+                             "tinha" e "final" são colunas PROPORCIONAIS (as duas
+                             estrelas): dividem o que sobra em partes iguais e
+                             encolhem junto, então o "final" nunca transborda pra
+                             fora do card. Só o "somar" (a caixa) é editável. -->
                         <Grid Margin="0,6,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
 
-                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                <TextBlock Text="tinha" FontSize="8" HorizontalAlignment="Center"
-                                           Foreground="{StaticResource TintaFraca}"/>
-                                <TextBlock Text="{Binding QuantidadeSalva, StringFormat={}{0:0.##}}"
-                                           FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Center"/>
-                            </StackPanel>
+                            <!-- Linha 0: rótulos, todos na mesma horizontal -->
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="tinha" FontSize="8"
+                                       HorizontalAlignment="Center" Foreground="{StaticResource TintaFraca}"/>
+                            <TextBlock Grid.Row="0" Grid.Column="2" Text="somar" FontSize="8"
+                                       HorizontalAlignment="Center" Foreground="{StaticResource MarcaEscura}"/>
+                            <TextBlock Grid.Row="0" Grid.Column="4" Text="final" FontSize="8"
+                                       HorizontalAlignment="Center" Foreground="{StaticResource TintaFraca}"/>
 
-                            <TextBlock Grid.Column="1" Text="+" FontSize="12" Margin="3,0,3,0"
+                            <!-- Linha 1: valores, centralizados na mesma horizontal -->
+                            <TextBlock Grid.Row="1" Grid.Column="0" FontSize="13" FontWeight="SemiBold"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Text="{Binding QuantidadeSalva, StringFormat={}{0:0.##}}"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="+" FontSize="12" Margin="2,0,2,0"
                                        VerticalAlignment="Center" Foreground="{StaticResource TintaFraca}"/>
-
-                            <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                                <TextBlock Text="somar" FontSize="8" HorizontalAlignment="Center"
-                                           Foreground="{StaticResource MarcaEscura}"/>
-                                <TextBox Style="{StaticResource CampoQuantidade}" Width="46" Height="30" FontSize="13"
-                                         IsEnabled="{Binding Editavel}"
-                                         Text="{Binding Pendente, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0.##}}"/>
-                            </StackPanel>
-
-                            <StackPanel Grid.Column="3" VerticalAlignment="Center">
-                                <TextBlock Text="fica" FontSize="8" HorizontalAlignment="Center"
-                                           Foreground="{StaticResource TintaFraca}"/>
-                                <TextBlock Text="{Binding Total, StringFormat={}{0:0.##}}"
-                                           FontSize="13" FontWeight="Bold" HorizontalAlignment="Center"
-                                           Foreground="{StaticResource MarcaEscura}"/>
-                            </StackPanel>
+                            <TextBox Grid.Row="1" Grid.Column="2" Style="{StaticResource CampoQuantidade}"
+                                     Width="44" Height="30" FontSize="13" VerticalAlignment="Center"
+                                     IsEnabled="{Binding Editavel}"
+                                     Text="{Binding Pendente, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0.##}}"/>
+                            <TextBlock Grid.Row="1" Grid.Column="3" Text="=" FontSize="12" Margin="2,0,2,0"
+                                       VerticalAlignment="Center" Foreground="{StaticResource TintaFraca}"/>
+                            <TextBlock Grid.Row="1" Grid.Column="4" FontSize="13" FontWeight="Bold"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Foreground="{StaticResource MarcaEscura}"
+                                       Text="{Binding Total, StringFormat={}{0:0.##}}"/>
                         </Grid>
                     </StackPanel>
                 </Grid>
