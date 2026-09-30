@@ -18,19 +18,19 @@
             <Border Height="104" Margin="0,0,12,12" HorizontalAlignment="Stretch"
                     Background="{StaticResource Superficie}" CornerRadius="14"
                     BorderBrush="#14000000" BorderThickness="1">
-                <Grid Margin="12,7,12,7">
+                <Grid Margin="8,7,10,7">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="86"/>
-                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="70"/>
+                        <ColumnDefinition Width="8"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <!-- Foto quadrada (as do repositório são 400x400). Tamanho
-                         fixo e VerticalAlignment=Center — quase do tamanho da
-                         altura útil do card (86 de 90), só a margem que sobra
-                         pro texto ao lado, mais estreita do que era. -->
+                    <!-- Foto quadrada (as do repositório são 400x400). Encolhida
+                         de 86 para 70 e colada mais à esquerda (margem 8) pra
+                         sobrar largura à coluna da conta — sem isso o "fica"
+                         cortava no caixa. -->
                     <Border Grid.Column="0" Background="#0F000000" CornerRadius="10"
-                            Width="86" Height="86" VerticalAlignment="Center">
+                            Width="70" Height="70" VerticalAlignment="Center">
                         <Image Source="{Binding Imagem}" Stretch="Uniform" Margin="3"/>
                     </Border>
 
@@ -46,11 +46,16 @@
                         <!-- tinha (salvo, só leitura) + somar (editável) = fica
                              (total, só leitura). Só o "somar" é TextBox — os
                              outros dois são texto, e é o que garante que a
-                             navegação por foco/Enter caia sempre no campo certo. -->
+                             navegação por foco/Enter caia sempre no campo certo.
+
+                             Colunas PROPORCIONAIS: "tinha" e "fica" são as duas
+                             estrelas, dividem o que sobra em partes iguais e
+                             encolhem junto — assim o "fica" nunca transborda pra
+                             fora do card (era o corte da imagem). Só o "somar"
+                             (a caixa) e o "+" têm largura fixa. -->
                         <Grid Margin="0,6,0,0">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
@@ -63,18 +68,18 @@
                                            FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Center"/>
                             </StackPanel>
 
-                            <TextBlock Grid.Column="1" Text="+" FontSize="13" Margin="6,0,6,0"
+                            <TextBlock Grid.Column="1" Text="+" FontSize="12" Margin="3,0,3,0"
                                        VerticalAlignment="Center" Foreground="{StaticResource TintaFraca}"/>
 
                             <StackPanel Grid.Column="2" VerticalAlignment="Center">
                                 <TextBlock Text="somar" FontSize="8" HorizontalAlignment="Center"
                                            Foreground="{StaticResource MarcaEscura}"/>
-                                <TextBox Style="{StaticResource CampoQuantidade}" Width="52" Height="30" FontSize="13"
+                                <TextBox Style="{StaticResource CampoQuantidade}" Width="46" Height="30" FontSize="13"
                                          IsEnabled="{Binding Editavel}"
                                          Text="{Binding Pendente, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0.##}}"/>
                             </StackPanel>
 
-                            <StackPanel Grid.Column="3" VerticalAlignment="Center" Margin="8,0,0,0">
+                            <StackPanel Grid.Column="3" VerticalAlignment="Center">
                                 <TextBlock Text="fica" FontSize="8" HorizontalAlignment="Center"
                                            Foreground="{StaticResource TintaFraca}"/>
                                 <TextBlock Text="{Binding Total, StringFormat={}{0:0.##}}"
