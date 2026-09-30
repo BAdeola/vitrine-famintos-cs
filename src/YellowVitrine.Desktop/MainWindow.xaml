@@ -65,12 +65,23 @@
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
-                            <!-- Linha 0: rótulos, todos na mesma horizontal -->
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="tinha" FontSize="8"
+                            <!-- Linha 0: rótulos, todos na mesma horizontal.
+                                 TextWrapping deixa "Estoque Atual" e "Estoque final"
+                                 quebrarem no espaço em vez de alargar a coluna — as
+                                 laterais são proporcionais, então alargar uma
+                                 espremeria a outra e desalinharia a faixa.
+                                 "Abastecendo" é palavra única: não tem onde quebrar,
+                                 e a coluna dele é Auto (colada na caixa de 44px).
+                                 Se ficar apertado, o ajuste é reduzir Colunas na
+                                 janela (menos cards por faixa, cada um mais largo). -->
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Estoque Atual" FontSize="8"
+                                       TextWrapping="Wrap" TextAlignment="Center"
                                        HorizontalAlignment="Center" Foreground="{StaticResource TintaFraca}"/>
-                            <TextBlock Grid.Row="0" Grid.Column="2" Text="somar" FontSize="8"
+                            <TextBlock Grid.Row="0" Grid.Column="2" Text="Abastecendo" FontSize="8"
+                                       TextWrapping="Wrap" TextAlignment="Center"
                                        HorizontalAlignment="Center" Foreground="{StaticResource MarcaEscura}"/>
-                            <TextBlock Grid.Row="0" Grid.Column="4" Text="final" FontSize="8"
+                            <TextBlock Grid.Row="0" Grid.Column="4" Text="Estoque final" FontSize="8"
+                                       TextWrapping="Wrap" TextAlignment="Center"
                                        HorizontalAlignment="Center" Foreground="{StaticResource TintaFraca}"/>
 
                             <!-- Linha 1: valores, centralizados na mesma horizontal -->

@@ -40,8 +40,19 @@ public partial class MainWindow : Window
     /// 220 (foto 86 + respiro 10 + margens 12+12 + folga mínima pro nome) ainda
     /// dá 4 colunas numa tela de ~1000px depois de aumentar a foto de 72 para
     /// 86 — o pedido era só a foto maior, sem perder as 4 colunas.
+    ///
+    /// SUBIU de 220 para 236 quando os rótulos viraram "Estoque Atual" /
+    /// "Abastecendo" / "Estoque final". Os antigos ("tinha"/"somar"/"final")
+    /// cabiam em ~18px; os novos precisam de ~31px por lateral, e o
+    /// "Abastecendo" ainda alarga a coluna do meio porque é palavra única e
+    /// não quebra. Com 220 a conta fechava por menos de 1px — e a fonte do app
+    /// é Poppins, mais larga que o Segoe UI usado pra medir, então na máquina
+    /// do caixa estouraria.
+    ///
+    /// 236+12 = 248 é o TETO que ainda dá 4 colunas em 1024px: (1024-16)/4 = 252.
+    /// Passar disso derruba pra 3 colunas nessa resolução.
     /// </summary>
-    private const double LarguraMinimaDoCard = 220 + 12;
+    private const double LarguraMinimaDoCard = 236 + 12;
 
     /// <summary>
     /// Quantos cards por faixa. É DependencyProperty porque a UniformGrid de
